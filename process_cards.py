@@ -31,7 +31,7 @@ def crop_and_rotate_rectangles(
         image_path (str): Path to the input image.
         output_dir (str): Directory to save cropped rectangles.
         max_rectangles (int, optional): Maximum number of rectangles to process. Defaults to 5.
-        min_area (int, optional): Minimum area for a rectangle to be considered. Defaults to 1000.
+        min_area (int, optional): Minimum area for a rectangle to be considered. Defaults to 500000 for large cards.
         draw_contours (bool, optional): Whether to save an image showing the detected contours. Defaults to False.
 
     Returns:
@@ -40,157 +40,179 @@ def crop_and_rotate_rectangles(
     cropped_image_paths = []
     original_filename = os.path.basename(image_path)
     name, ext = os.path.splitext(original_filename)
-
+    
     image = cv2.imread(image_path)
     if image is None:
         print(f"Error: Could not read image from {image_path}")
         return cropped_image_paths
 
+    # More balanced preprocessing for better large rectangle detection
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # Moderate blurring - enough to reduce noise but not lose important details
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    
+    # Use original edge detection approach that worked better
     edges = cv2.Canny(blurred, 50, 150)
-    dilated_edges = cv2.dilate(edges, None, iterations=2)
-
+    dilated_edges = cv2.dilate(edges, None, iterations=7)  # Keep strong dilation
+    
+    # Find contours with this approach
     contours, _ = cv2.findContours(
         dilated_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
+    
+    # Save intermediate processing images for debugging if requested
+    if draw_contours:
+        debug_dir = os.path.join(output_dir, "debug")
+        os.makedirs(debug_dir, exist_ok=True)
+        
+        cv2.imwrite(os.path.join(debug_dir, f"{name}-gray.png"), gray)
+        cv2.imwrite(os.path.join(debug_dir, f"{name}-blurred.png"), blurred)
+        cv2.imwrite(os.path.join(debug_dir, f"{name}-edges.png"), edges)
+        cv2.imwrite(os.path.join(debug_dir, f"{name}-dilated_edges.png"), dilated_edges)
 
-    # Save contours visualization if requested
+    # Save raw contours visualization if requested
     if draw_contours:
         # Create a copy of the original image to draw on
-        contour_image = image.copy()
-
+        all_contours_image = image.copy()
+        
         # Draw all contours in red
-        cv2.drawContours(contour_image, contours, -1, (0, 0, 255), 2)
+        cv2.drawContours(all_contours_image, contours, -1, (0, 0, 255), 2)
+        
+        # Save the all contours visualization
+        all_contours_filename = f"{name}-contours-raw{ext}"
+        all_contours_path = os.path.join(output_dir, all_contours_filename)
+        cv2.imwrite(all_contours_path, all_contours_image)
+        print(f"Saved raw contours visualization to: {all_contours_path}")
 
-        # Draw detected rectangles in green
-        for contour in contours:
-            if cv2.contourArea(contour) >= min_area:
-                rect = cv2.minAreaRect(contour)
-                width, height = rect[1]
-                aspect_ratio = (
-                    min(width, height) / max(width, height)
-                    if min(width, height) > 0
-                    else 0
-                )
-
-                if 0.71 <= aspect_ratio <= 0.72:
-                    box = cv2.boxPoints(rect)
-                    box = np.int32(box)
-                    cv2.drawContours(contour_image, [box], 0, (0, 255, 0), 3)
-
-        # Save the contour visualization
-        contours_filename = f"{name}-contours{ext}"
-        contours_path = os.path.join(output_dir, contours_filename)
-        cv2.imwrite(contours_path, contour_image)
-        print(f"Saved contours visualization to: {contours_path}")
-
+    # Filter contours and find rectangular shapes
     rectangles = []
     for contour in contours:
-        if cv2.contourArea(contour) < min_area:
+        area = cv2.contourArea(contour)
+        if area < min_area:
             continue
+        
+        # Get the minimum area rectangle for this contour
         rect = cv2.minAreaRect(contour)
-
+        
         # Calculate aspect ratio (make sure to handle division by zero)
         width, height = rect[1]
         aspect_ratio = (
             min(width, height) / max(width, height) if min(width, height) > 0 else 0
         )
-        if aspect_ratio < 0.71 or aspect_ratio > 0.72:
-            continue
-
-        box = cv2.boxPoints(rect)
-        box = np.int32(box)
-
-        if len(box) == 4:
-            area = cv2.contourArea(box)
-            rectangles.append((area, box))
-
+        
+        # Use a more relaxed aspect ratio constraint (0.65-0.75) for large rectangles
+        # Standard playing cards have an aspect ratio around 0.7 (2.5" x 3.5")
+        if 0.65 <= aspect_ratio <= 0.75:
+            box = cv2.boxPoints(rect)
+            box = np.int32(box)
+            
+            if len(box) == 4:
+                area = cv2.contourArea(box)
+                rectangles.append((area, box))
+                
+    # Sort rectangles by area (largest first)
     rectangles.sort(key=lambda x: x[0], reverse=True)
+    
+    # Report how many rectangles we found
+    print(f"Found {len(rectangles)} rectangular contours with min_area {min_area}")
+    
+    # Save visualization of filtered contours
+    if draw_contours:
+        # Create a copy of the original image
+        filtered_contours_image = image.copy()
+        
+        # Draw the filtered rectangles in green
+        for _, box in rectangles:
+            cv2.drawContours(filtered_contours_image, [box], 0, (0, 255, 0), 3)
+        
+        # Save the filtered contours visualization
+        filtered_contours_filename = f"{name}-contours-filtered{ext}"
+        filtered_contours_path = os.path.join(output_dir, filtered_contours_filename)
+        cv2.imwrite(filtered_contours_path, filtered_contours_image)
+        print(f"Saved filtered contours visualization to: {filtered_contours_path}")
 
+    # Process each rectangle up to the maximum number
     for i, (_, box) in enumerate(rectangles[:max_rectangles]):
         rect = np.float32(box)  # Use the box as the rectangle
-
+        
         # Get the minimum area rectangle that fits the points
         min_rect = cv2.minAreaRect(rect)
         (center_x, center_y), (width, height), angle = min_rect
         center = (int(center_x), int(center_y))
-
+        
         # Determine if we need to adjust the angle for proper orientation
         if width < height:
             angle += 90
-
+        
         # Create a larger image with padding to ensure no part is lost after rotation
         # Calculate the diagonal of the rectangle as the minimum padding needed
         diagonal = int(math.sqrt(width**2 + height**2)) + 20  # Add some extra padding
-
+        
         # Create a padded version of the original image
         h, w = image.shape[:2]
         padded_image = cv2.copyMakeBorder(
-            image,
-            diagonal,
-            diagonal,
-            diagonal,
-            diagonal,
-            cv2.BORDER_CONSTANT,
-            value=[0, 0, 0],
+            image, diagonal, diagonal, diagonal, diagonal, 
+            cv2.BORDER_CONSTANT, value=[0, 0, 0]
         )
-
+        
         # Adjust the center point for the padded image
         padded_center = (center[0] + diagonal, center[1] + diagonal)
-
+        
         # Create rotation matrix for the padded image
         rotation_matrix = cv2.getRotationMatrix2D(padded_center, angle, 1.0)
-
+        
         # Rotate the padded image
         padded_width, padded_height = padded_image.shape[1], padded_image.shape[0]
         rotated_padded_image = cv2.warpAffine(
             padded_image, rotation_matrix, (padded_width, padded_height)
         )
-
+        
         # Save the rotated padded image for debugging
-        debug_rotated_filename = f"{name}-rotated-{i+1}{ext}"
-        debug_rotated_path = os.path.join(output_dir, debug_rotated_filename)
-        cv2.imwrite(debug_rotated_path, rotated_padded_image)
-
+        if draw_contours:
+            debug_rotated_filename = f"{name}-rotated-{i+1}{ext}"
+            debug_rotated_path = os.path.join(debug_dir, debug_rotated_filename)
+            cv2.imwrite(debug_rotated_path, rotated_padded_image)
+        
         # Adjust the box points for the padded image
         padded_box = rect.copy()
         padded_box[:, 0] += diagonal  # Adjust x coordinates
         padded_box[:, 1] += diagonal  # Adjust y coordinates
-
+        
         # Apply the rotation to the padded box points
         rotated_box = cv2.transform(np.array([padded_box]), rotation_matrix)[0]
-
+        
         # Get the bounding rectangle of the rotated box
         x_min, y_min = np.min(rotated_box, axis=0).astype(int)
         x_max, y_max = np.max(rotated_box, axis=0).astype(int)
-
+        
         # Ensure the bounds are within the image
         x_min = max(0, x_min)
         y_min = max(0, y_min)
         x_max = min(padded_width, x_max)
         y_max = min(padded_height, y_max)
-
+        
         # Check if the crop region is valid
         if x_min >= x_max or y_min >= y_max:
             print(f"Warning: Invalid crop region for rectangle {i+1}, skipping.")
             continue
-
+        
         # Crop the rotated rectangle
         cropped_image = rotated_padded_image[y_min:y_max, x_min:x_max]
-
+        
         # Save the initial cropped image for debugging
-        debug_cropped_filename = f"{name}-cropped-debug-{i+1}{ext}"
-        debug_cropped_path = os.path.join(output_dir, debug_cropped_filename)
-        cv2.imwrite(debug_cropped_path, cropped_image)
-
+        if draw_contours:
+            debug_cropped_filename = f"{name}-cropped-debug-{i+1}{ext}"
+            debug_cropped_path = os.path.join(debug_dir, debug_cropped_filename)
+            cv2.imwrite(debug_cropped_path, cropped_image)
+        
         # Rotate the final image to have the card in portrait orientation
         final_image = cv2.rotate(cropped_image, cv2.ROTATE_90_CLOCKWISE)
-
+        
         # Save the final cropped and rotated image
         output_filename = f"{name}-cropped-{i+1}{ext}"
         output_path = os.path.join(output_dir, output_filename)
-
+        
         # Verify the image is valid before writing
         if final_image.size > 0:
             cv2.imwrite(output_path, final_image)
@@ -198,31 +220,31 @@ def crop_and_rotate_rectangles(
             print(f"Saved cropped and rotated rectangle {i+1} to {output_path}")
         else:
             print(f"Warning: Invalid rotated image for rectangle {i+1}, skipping.")
-
+    
     return cropped_image_paths
 
 
 def trim_image(image_path, output_dir):
     """
     Trims whitespace from a single image using ImageMagick's convert.
-
+    
     Args:
         image_path (str): Path to the input image.
         output_dir (str): Directory to save the trimmed image.
-
+        
     Returns:
         str: Path to the saved trimmed image.
     """
     try:
         filename = os.path.basename(image_path)
         name, ext = os.path.splitext(filename)
-
+        
         # Format should be ORIGINAL_FILE-cropped-X-trimmed.originalformat
         if "-cropped-" in name:
             output_filename = f"{name}-trimmed{ext}"
         else:
             output_filename = f"{name}-trimmed{ext}"
-
+        
         # Save to the trimmed subdirectory
         trimmed_dir = os.path.join(output_dir, "trimmed")
         output_path = os.path.join(trimmed_dir, output_filename)
@@ -239,7 +261,7 @@ def trim_image(image_path, output_dir):
         print(f"Error: ImageMagick 'convert' command not found.")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
-
+    
     return None
 
 
@@ -248,23 +270,23 @@ def process_image(
 ):
     """
     Process a single image: crop rectangles and trim whitespace.
-
+    
     Args:
         image_path (str): Path to the input image.
         output_dir (str): Directory to save processed images.
         max_rectangles (int, optional): Maximum number of rectangles to process. Defaults to 5.
-        min_area (int, optional): Minimum area for a rectangle to be considered. Defaults to 1000.
+        min_area (int, optional): Minimum area for a rectangle to be considered. Defaults to 500000 for large cards.
         draw_contours (bool, optional): Whether to save an image showing the detected contours. Defaults to False.
     """
     if not os.path.isfile(image_path):
         print(f"Warning: '{image_path}' is not a regular file, skipping.")
         return
-
+        
     # Step 1: Crop and rotate rectangles
     cropped_paths = crop_and_rotate_rectangles(
         image_path, output_dir, max_rectangles, min_area, draw_contours
     )
-
+    
     # Step 2: Trim whitespace from all cropped images
     for cropped_path in cropped_paths:
         trim_image(cropped_path, output_dir)
@@ -287,7 +309,7 @@ def main():
         "--min_area",
         type=int,
         default=500000,
-        help="Minimum area of rectangles to consider.",
+        help="Minimum area of rectangles to consider (default: 500000 for large cards).",
     )
     parser.add_argument(
         "-c",
@@ -296,32 +318,22 @@ def main():
         help="Save visualization of detected contours.",
     )
     args = parser.parse_args()
-
+    
     # Create timestamped output directory
     output_dir = create_output_directory()
     print(f"Processing images, saving results to: {output_dir}")
-
+    
     # Process each input file
     for input_pattern in args.input_files:
         # Handle glob patterns
         if "*" in input_pattern or "?" in input_pattern or "[" in input_pattern:
             for input_file in glob.glob(input_pattern):
                 process_image(
-                    input_file,
-                    output_dir,
-                    args.max_rectangles,
-                    args.min_area,
-                    args.contours,
+                    input_file, output_dir, args.max_rectangles, args.min_area, args.contours
                 )
         else:
             # Handle regular files
-            process_image(
-                input_pattern,
-                output_dir,
-                args.max_rectangles,
-                args.min_area,
-                args.contours,
-            )
+            process_image(input_pattern, output_dir, args.max_rectangles, args.min_area, args.contours)
 
 
 if __name__ == "__main__":
