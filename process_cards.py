@@ -4,6 +4,7 @@ import datetime
 import argparse
 import glob
 import subprocess
+import math
 
 import cv2
 import numpy as np
@@ -47,14 +48,11 @@ def crop_and_rotate_rectangles(
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blurred, 50, 150)
+    dilated_edges = cv2.dilate(edges, None, iterations=2)
 
-    edges = cv2.Canny(blurred, 50, 150, apertureSize=3)
-    dilated_edges = cv2.dilate(edges, None, iterations=8)
-
-    # cv2.RETR_TREE
-    # cv2.RETR_EXTERNAL
     contours, _ = cv2.findContours(
-        dilated_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
+        dilated_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
 
     # Save contours visualization if requested
@@ -67,7 +65,6 @@ def crop_and_rotate_rectangles(
 
         # Draw detected rectangles in green
         for contour in contours:
-
             if cv2.contourArea(contour) >= min_area:
                 rect = cv2.minAreaRect(contour)
                 width, height = rect[1]
@@ -112,59 +109,91 @@ def crop_and_rotate_rectangles(
     rectangles.sort(key=lambda x: x[0], reverse=True)
 
     for i, (_, box) in enumerate(rectangles[:max_rectangles]):
-        rect = box.astype(np.float32)
+        rect = np.float32(box)  # Use the box as the rectangle
 
-        # Get the rectangle center, width, height, and angle
-        (x, y), (w, h), angle = cv2.minAreaRect(rect)
-        center = (int(x), int(y))
+        # Get the minimum area rectangle that fits the points
+        min_rect = cv2.minAreaRect(rect)
+        (center_x, center_y), (width, height), angle = min_rect
+        center = (int(center_x), int(center_y))
 
-        # Adjust angle for correct orientation
-        if w < h:
+        # Determine if we need to adjust the angle for proper orientation
+        if width < height:
             angle += 90
 
-        # Create rotation matrix
-        rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+        # Create a larger image with padding to ensure no part is lost after rotation
+        # Calculate the diagonal of the rectangle as the minimum padding needed
+        diagonal = int(math.sqrt(width**2 + height**2)) + 20  # Add some extra padding
 
-        # Rotate the full image
-        rotated_image = cv2.warpAffine(
-            image, rotation_matrix, (image.shape[1], image.shape[0])
+        # Create a padded version of the original image
+        h, w = image.shape[:2]
+        padded_image = cv2.copyMakeBorder(
+            image,
+            diagonal,
+            diagonal,
+            diagonal,
+            diagonal,
+            cv2.BORDER_CONSTANT,
+            value=[0, 0, 0],
         )
 
-        # Crop the rotated image to the rectangle's bounding box
-        box_int = np.int32(
-            cv2.transform(np.array([rect]), rotation_matrix)[0]
-        )  # Rotate the box points
-        x_min, y_min = np.min(box_int, axis=0)
-        x_max, y_max = np.max(box_int, axis=0)
+        # Adjust the center point for the padded image
+        padded_center = (center[0] + diagonal, center[1] + diagonal)
 
-        # Add checks to prevent out-of-bounds indices
+        # Create rotation matrix for the padded image
+        rotation_matrix = cv2.getRotationMatrix2D(padded_center, angle, 1.0)
+
+        # Rotate the padded image
+        padded_width, padded_height = padded_image.shape[1], padded_image.shape[0]
+        rotated_padded_image = cv2.warpAffine(
+            padded_image, rotation_matrix, (padded_width, padded_height)
+        )
+
+        # Save the rotated padded image for debugging
+        debug_rotated_filename = f"{name}-rotated-{i+1}{ext}"
+        debug_rotated_path = os.path.join(output_dir, debug_rotated_filename)
+        cv2.imwrite(debug_rotated_path, rotated_padded_image)
+
+        # Adjust the box points for the padded image
+        padded_box = rect.copy()
+        padded_box[:, 0] += diagonal  # Adjust x coordinates
+        padded_box[:, 1] += diagonal  # Adjust y coordinates
+
+        # Apply the rotation to the padded box points
+        rotated_box = cv2.transform(np.array([padded_box]), rotation_matrix)[0]
+
+        # Get the bounding rectangle of the rotated box
+        x_min, y_min = np.min(rotated_box, axis=0).astype(int)
+        x_max, y_max = np.max(rotated_box, axis=0).astype(int)
+
+        # Ensure the bounds are within the image
         x_min = max(0, x_min)
         y_min = max(0, y_min)
-        x_max = min(rotated_image.shape[1], x_max)
-        y_max = min(rotated_image.shape[0], y_max)
+        x_max = min(padded_width, x_max)
+        y_max = min(padded_height, y_max)
 
         # Check if the crop region is valid
         if x_min >= x_max or y_min >= y_max:
             print(f"Warning: Invalid crop region for rectangle {i+1}, skipping.")
             continue
 
-        cropped_rotated_image = rotated_image[y_min:y_max, x_min:x_max]
+        # Crop the rotated rectangle
+        cropped_image = rotated_padded_image[y_min:y_max, x_min:x_max]
 
-        # Check if the cropped image is valid
-        if cropped_rotated_image.size == 0:
-            print(f"Warning: Empty cropped image for rectangle {i+1}, skipping.")
-            continue
+        # Save the initial cropped image for debugging
+        debug_cropped_filename = f"{name}-cropped-debug-{i+1}{ext}"
+        debug_cropped_path = os.path.join(output_dir, debug_cropped_filename)
+        cv2.imwrite(debug_cropped_path, cropped_image)
 
-        rotate_cropped_rotated_image = cv2.rotate(
-            cropped_rotated_image, cv2.ROTATE_90_CLOCKWISE
-        )
+        # Rotate the final image to have the card in portrait orientation
+        final_image = cv2.rotate(cropped_image, cv2.ROTATE_90_CLOCKWISE)
 
+        # Save the final cropped and rotated image
         output_filename = f"{name}-cropped-{i+1}{ext}"
         output_path = os.path.join(output_dir, output_filename)
 
         # Verify the image is valid before writing
-        if rotate_cropped_rotated_image.size > 0:
-            cv2.imwrite(output_path, rotate_cropped_rotated_image)
+        if final_image.size > 0:
+            cv2.imwrite(output_path, final_image)
             cropped_image_paths.append(output_path)
             print(f"Saved cropped and rotated rectangle {i+1} to {output_path}")
         else:
