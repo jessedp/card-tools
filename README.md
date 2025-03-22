@@ -91,11 +91,11 @@ javascript: (function () {
 ### Install from Source
 
 ```bash
-# Install in development mode
-pip install -e .
-
-# Or for a regular installation
+# For a regular installation
 pip install .
+
+# or to install in development mode
+pip install -e .
 ```
 
 ## Tools
@@ -109,7 +109,11 @@ The main combined tool that handles the full workflow:
 3. Trimming whitespace from the cropped images
 
 ```bash
-python process_cards.py image1.jpg image2.png
+process-cards image1.jpg image2.png
+```
+__Uninstalled command:__ 
+```bash
+python process_cards.py <args>
 ```
 
 #### Command Line Options
@@ -123,13 +127,13 @@ python process_cards.py image1.jpg image2.png
 
 ```bash
 # Process all JPG files in a directory
-python process_cards.py "images/*.jpg"
+process-cards "images/*.jpg"
 
 # Process with contour visualization
-python process_cards.py image.jpg -c
+process-cards image.jpg -c
 
 # Process with custom settings
-python process_cards.py image.jpg -n 10 -a 500000
+process-cards image.jpg -n 10 -a 500000
 ```
 
 #### Output Directory Structure
@@ -155,6 +159,11 @@ processed/
         └── original_image-cropped-2-trimmed.png
 ```
 
+#### Uninstlalled
+```bash
+python process_cards.py <args>
+```
+
 ### find-recs
 
 Finds, crops, and rotates rectangular card images.
@@ -169,6 +178,12 @@ Options:
 - `-n`, `--max_rectangles`: Maximum number of rectangles to crop (default: 20)
 - `-a`, `--min_area`: Minimum area of rectangles to consider (default: 1000 in the original script, 500000 recommended for large cards)
 
+#### Uninstlalled
+```bash
+python find_recs.py <args>
+```
+
+
 ### trim-whitespace
 
 Trims whitespace from images using ImageMagick.
@@ -177,17 +192,12 @@ Trims whitespace from images using ImageMagick.
 trim-whitespace path/to/image.jpg
 ```
 
-Note: Requires ImageMagick to be installed. On Ubuntu/Debian, install with:
+__Uninstalled command:__ 
 
 ```bash
-sudo apt-get install imagemagick
+python trim_whitespace.py <args>
 ```
 
-For system-wide OpenCV on Ubuntu/Debian:
-
-```bash
-sudo apt install python3-opencv
-```
 
 ## Python API
 
