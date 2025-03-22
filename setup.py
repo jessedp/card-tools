@@ -6,7 +6,7 @@ setup(
     description="Tools for processing card images",
     author="Jesse",
     packages=find_packages(),
-    py_modules=["find_recs", "trim_whitespace"],
+    py_modules=["find_recs", "trim_whitespace", "process_cards"],
     install_requires=[
         "opencv-python",
         "numpy",
