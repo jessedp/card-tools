@@ -10,19 +10,19 @@ A collection of scripts and Python tools for processing card images - detecting 
 
 These have been used with [tampermonkey](https://www.tampermonkey.net/), should work with others.
 
-#### [SportsCardsPro - Add Card Overlay to Checklist.user.js](https://github.com/jessedp/card-tools/blob/main/SportsCardsPro+-+SportsCardsPro+-+Add+Card+Overlay+to+Checklist.user.js)
+#### [SportsCardsPro - Add Card Overlay to Checklist.user.js](https://github.com/jessedp/card-tools/blob/main/UserScripts/SportsCardsPro%20-%20Add%20Card%20Overlay%20to%20Checklist.user.js)
 
 When viewing checklists, this adds a new "Add Card" button that will open the add card page in an iframe in the same window and trim some things off to make it quicker to add cards from the same set.
 
-#### [SportsCardsPro - Add Card Form Helpers.user.js](https://github.com/jessedp/card-tools/blob/main/SportsCardsPro+-+Add+Card+Form+Helpers.user.js)
+#### [SportsCardsPro - Add Card Form Helpers.user.js](https://github.com/jessedp/card-tools/blob/main/UserScripts/SportsCardsPro%20-%20Add%20Card%20Form%20Helpers.user.js)
 
 On the add card page, this will collapse the Grading options into a toggleable area (defaults to closed) as well as saving the cost and purchase date when you save. Those values will then be prepopulated for the next hour to facilitate adding cards quicker.
 
-#### [SportsCardsPro - Missing Image - Create List.user.js](https://github.com/jessedp/card-tools/blob/main/SportsCardsPro+-+Missing+Image+-+Create+List.user.js)
+#### [SportsCardsPro - Missing Image - Create List.user.js](https://github.com/jessedp/card-tools/blob/main/UserScripts/SportsCardsPro%20-%20Missing%20Image%20-%20Create%20List.user.js)
 
 When clicking the (new green) "Open Missing Image List" button while viewing a category of your collection, the page will scroll to the end (be patient) and collect a list of every card that is displaying the "no image" placeholder and open the list in a new tab so you can go find them.
 
-#### [SportsCardsPro - Missing Images - Show List.user.js](https://github.com/jessedp/card-tools/blob/main/SportsCardsPro+-+Missing+Images+-+Show+List.user.js)
+#### [SportsCardsPro - Missing Images - Show List.user.js](https://github.com/jessedp/card-tools/blob/main/UserScripts/SportsCardsPro%20-%20Missing%20Images%20-%20Show%20List.user.js)
 
 While viewing a category of your collection, hover over the (new green) "Show Missing Images" button - there are two options, both of which modify the list so only ones displaying the "no image" placeholder are shown.
 
@@ -30,7 +30,7 @@ While viewing a category of your collection, hover over the (new green) "Show Mi
 
 2. **All** - like with "Show User List", this scrolls throught the entire category, then applies the "Visible" filtering above, effectively filtering the entire category.
 
-#### [SportscardsPro - Site Wide.user.js](https://github.com/jessedp/card-tools/blob/main/SportscardsPro+-+Site+Wide.user.js)
+#### [SportscardsPro - Site Wide.user.js](https://github.com/jessedp/card-tools/blob/main/UserScripts/SportscardsPro%20-%20Site%20Wide.user.js)
 
 Currently does two things:
 
