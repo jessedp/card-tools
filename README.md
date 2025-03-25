@@ -6,6 +6,37 @@ A collection of scripts and Python tools for processing card images - detecting 
 
 ## General
 
+### SportsCardsPro UserScripts
+
+These have been used with [tampermonkey](https://www.tampermonkey.net/), should work with others.
+
+#### [SportsCardsPro - Add Card Overlay to Checklist.user.js](https://github.com/jessedp/card-tools/blob/main/SportsCardsPro+-+SportsCardsPro+-+Add+Card+Overlay+to+Checklist.user.js)
+
+When viewing checklists, this adds a new "Add Card" button that will open the add card page in an iframe in the same window and trim some things off to make it quicker to add cards from the same set.
+
+#### [SportsCardsPro - Add Card Form Helpers.user.js](https://github.com/jessedp/card-tools/blob/main/SportsCardsPro+-+Add+Card+Form+Helpers.user.js)
+
+On the add card page, this will collapse the Grading options into a toggleable area (defaults to closed) as well as saving the cost and purchase date when you save. Those values will then be prepopulated for the next hour to facilitate adding cards quicker.
+
+#### [SportsCardsPro - Missing Image - Create List.user.js](https://github.com/jessedp/card-tools/blob/main/SportsCardsPro+-+Missing+Image+-+Create+List.user.js)
+
+When clicking the (new green) "Open Missing Image List" button while viewing a category of your collection, the page will scroll to the end (be patient) and collect a list of every card that is displaying the "no image" placeholder and open the list in a new tab so you can go find them.
+
+#### [SportsCardsPro - Missing Images - Show List.user.js](https://github.com/jessedp/card-tools/blob/main/SportsCardsPro+-+Missing+Images+-+Show+List.user.js)
+
+While viewing a category of your collection, hover over the (new green) "Show Missing Images" button - there are two options, both of which modify the list so only ones displaying the "no image" placeholder are shown.
+
+1. **Visible** - this will remove the "load more" functionality and filter out cards from what's currently loaded/visible. By default when the page loads, that's 50 cards max. This can be useful after adding cards and quicker then going through everything. _The page must currently be reloaded to undo this._
+
+2. **All** - like with "Show User List", this scrolls throught the entire category, then applies the "Visible" filtering above, effectively filtering the entire category.
+
+#### [SportscardsPro - Site Wide.user.js](https://github.com/jessedp/card-tools/blob/main/SportscardsPro+-+Site+Wide.user.js)
+
+Currently does two things:
+
+1. Keeps a list of the last 5 useful on-site pages visited and displaus it along with a link to your collection in the upper right.
+2. Applies custom styles
+
 ### sportscardpro bookmarklets
 
 You'll probably want to [minify](https://www.uglifyjs.net/) these before [saving them as bookmarklets](https://www.freecodecamp.org/news/what-are-bookmarklets/).
@@ -111,7 +142,9 @@ The main combined tool that handles the full workflow:
 ```bash
 process-cards image1.jpg image2.png
 ```
-__Uninstalled command:__ 
+
+**Uninstalled command:**
+
 ```bash
 python process_cards.py <args>
 ```
@@ -160,6 +193,7 @@ processed/
 ```
 
 #### Uninstlalled
+
 ```bash
 python process_cards.py <args>
 ```
@@ -179,10 +213,10 @@ Options:
 - `-a`, `--min_area`: Minimum area of rectangles to consider (default: 1000 in the original script, 500000 recommended for large cards)
 
 #### Uninstlalled
+
 ```bash
 python find_recs.py <args>
 ```
-
 
 ### trim-whitespace
 
@@ -192,12 +226,11 @@ Trims whitespace from images using ImageMagick.
 trim-whitespace path/to/image.jpg
 ```
 
-__Uninstalled command:__ 
+**Uninstalled command:**
 
 ```bash
 python trim_whitespace.py <args>
 ```
-
 
 ## Python API
 
