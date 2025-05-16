@@ -1,2 +1,10 @@
 opencv-python
 numpy
+boto3
+llm
+pyexcel-ods
+pandas
+requests 
+requests-oauthlib
+aiohttp
+python-dotenv
