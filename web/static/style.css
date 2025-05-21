@@ -279,3 +279,50 @@ button:hover {
 .auto-copy {
     cursor: copy;
 }
+
+/* Carousel Styles */
+#carouselContainer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 20px 0;
+}
+
+#carousel {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    /* Enable smooth scrolling on iOS */
+    width: 80%;
+    /* Adjust as needed */
+}
+
+#carousel img {
+    width: 100px;
+    /* Adjust as needed */
+    height: 100px;
+    /* Adjust as needed */
+    object-fit: contain;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin: 5px;
+    scroll-snap-align: start;
+    cursor: pointer;
+}
+
+#prevButton,
+#nextButton {
+    background-color: #f0f0f0;
+    border: none;
+    padding: 10px;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+#prevButton:disabled,
+#nextButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+```

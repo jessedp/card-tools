@@ -18,6 +18,7 @@ def get_ebay_token():
     current_time = time.time()
     if (
         _token_cache["access_token"]
+        and _token_cache["expires_at"] is not None
         and current_time < _token_cache["expires_at"]
     ):
         return _token_cache["access_token"]

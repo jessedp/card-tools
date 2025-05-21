@@ -22,8 +22,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const otherText = document.getElementById("otherText");
   const fullText = document.getElementById("fullText");
 
-  // Store the current selected image
-  let selectedFile = null;
+  // Carousel elements
+  const carousel = document.getElementById("carousel");
+  const prevButton = document.getElementById("prevButton");
+  const nextButton = document.getElementById("nextButton");
+  const carouselContainer = document.getElementById("carouselContainer");
+
+  // Data store for image lookups
+  const imageLookups = [];
+  let currentImageIndex = -1;
 
   // File input click handler
   selectFileButton.addEventListener("click", () => {
@@ -51,11 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     imageUploadContainer.classList.remove("dragover");
 
-    imagePreview.style.display = "none";
-    searchEbayButton.style.display = "none";
-    search130Button.style.display = "none";
-    ocrResults.style.display = "none";
-    ocrResultLoader.style.display = "none";
+    resetDisplay();
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleImageFile(e.dataTransfer.files[0]);
@@ -83,6 +86,21 @@ document.addEventListener("DOMContentLoaded", () => {
       .catch((error) => console.error("Error:", error));
   });
 
+  // Carousel navigation
+  prevButton.addEventListener("click", () => {
+    if (currentImageIndex > 0) {
+      currentImageIndex--;
+      displayImageLookup(currentImageIndex);
+    }
+  });
+
+  nextButton.addEventListener("click", () => {
+    if (currentImageIndex < imageLookups.length - 1) {
+      currentImageIndex++;
+      displayImageLookup(currentImageIndex);
+    }
+  });
+
   // Handle the selected image file
   async function handleImageFile(file) {
     // Validate file is an image
@@ -108,27 +126,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Preview the image
     const reader = new FileReader();
-    reader.onload = (e) => {
-      imagePreview.src = e.target.result;
+    reader.onload = async (e) => {
+      const imageDataUrl = e.target.result;
+      imagePreview.src = imageDataUrl;
       imagePreview.style.display = "block";
       search130Button.style.display = "block";
+
+      // Hide any previous errors or results
+      hideError();
+      resultsList.innerHTML = "";
+      resultsTitle.style.display = "none";
+
+      // Perform OCR
+      const ocrResult = await uploadImageForOCR(file);
+      ocrResultLoader.style.display = "none";
+
+      // Store the image lookup
+      addImageLookup(imageDataUrl, ocrResult, null); // Initial eBay results are null
     };
     reader.onerror = () => {
       showError("Error reading the file. Please try again.");
     };
 
     reader.readAsDataURL(file);
-
-    // Hide any previous errors or results
-    hideError();
-    resultsList.innerHTML = "";
-    resultsTitle.style.display = "none";
-
-    // searchEbay();
-
-    const ocrResult = await uploadImageForOCR(file);
-    ocrResultLoader.style.display = "none";
-    displayOCRResults(ocrResult);
   }
   // Handle image file upload
   async function uploadImageForOCR(file) {
@@ -384,6 +404,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const data = await response.json();
+      // Store the eBay results in the current image lookup
+      if (currentImageIndex >= 0 && currentImageIndex < imageLookups.length) {
+        imageLookups[currentImageIndex].ebayResults = data;
+      }
       displayResults(data);
     } catch (error) {
       showError(error.message || "An error occurred during the search.");
@@ -463,6 +487,76 @@ document.addEventListener("DOMContentLoaded", () => {
   function hideError() {
     errorMessage.textContent = "";
     errorMessage.style.display = "none";
+  }
+
+  // --- Carousel Functions ---
+  function addImageLookup(imageDataUrl, ocrResult, ebayResults) {
+    imageLookups.push({
+      imageDataUrl: imageDataUrl,
+      ocrResult: ocrResult,
+      ebayResults: ebayResults,
+    });
+    currentImageIndex = imageLookups.length - 1; // Update current index
+
+    updateCarousel();
+    displayImageLookup(currentImageIndex);
+  }
+
+  function updateCarousel() {
+    // Clear the carousel
+    carousel.innerHTML = "";
+
+    // Add images to the carousel
+    imageLookups.forEach((lookup, index) => {
+      const img = document.createElement("img");
+      img.src = lookup.imageDataUrl;
+      img.alt = `Image ${index + 1}`;
+      img.addEventListener("click", () => displayImageLookup(index));
+      carousel.appendChild(img);
+    });
+
+    // Show carousel and navigation buttons if there are images
+    if (imageLookups.length > 0) {
+      carouselContainer.style.display = "flex"; // Or whatever display style you prefer
+      prevButton.style.display = "block";
+      nextButton.style.display = "block";
+    } else {
+      carouselContainer.style.display = "none";
+      prevButton.style.display = "none";
+      nextButton.style.display = "none";
+    }
+
+    // Enable/disable navigation buttons based on current index
+    prevButton.disabled = currentImageIndex <= 0;
+    nextButton.disabled = currentImageIndex >= imageLookups.length - 1;
+  }
+
+  function displayImageLookup(index) {
+    const lookup = imageLookups[index];
+    imagePreview.src = lookup.imageDataUrl;
+    imagePreview.style.display = "block";
+    displayOCRResults(lookup.ocrResult);
+    if (lookup.ebayResults) {
+      displayResults(lookup.ebayResults); // Display stored eBay results
+    } else {
+      // Clear existing results if no eBay results are stored
+      resultsList.innerHTML = "";
+      resultsTitle.style.display = "none";
+    }
+
+    currentImageIndex = index;
+    updateCarousel(); // Update carousel to reflect current selection
+  }
+
+  function resetDisplay() {
+    imagePreview.style.display = "none";
+    searchEbayButton.style.display = "none";
+    search130Button.style.display = "none";
+    ocrResults.style.display = "none";
+    ocrResultLoader.style.display = "none";
+    hideError();
+    resultsList.innerHTML = "";
+    resultsTitle.style.display = "none";
   }
 });
 
