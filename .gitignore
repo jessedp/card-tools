@@ -54,3 +54,6 @@ logs/
 # Documentation
 docs/_build/
 processed/
+
+cache/
+images/

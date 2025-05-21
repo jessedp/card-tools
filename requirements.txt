@@ -5,6 +5,11 @@ llm
 pyexcel-ods
 pandas
 requests 
+
 requests-oauthlib
 aiohttp
+
 python-dotenv
+
+uvicorn
+python-multipart
