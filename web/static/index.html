@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Image Search</title>
+        <link rel="stylesheet" href="static/style.css" />
+    </head>
+
+    <body>
+        <div class="container">
+            <h3>eBay Image Search</h3>
+            <!-- <p class="instructions">
+                Upload an image to find similar items on eBay
+            </p>
+ -->
+            <div id="imageUploadContainer">
+                <p>Drag & drop an image here, or click to select</p>
+                <input
+                    type="file"
+                    id="imageFile"
+                    accept="image/*"
+                    style="display: none"
+                />
+                <button id="selectFileButton">Select Image</button>
+            </div>
+
+            <table width="95%">
+                <tr>
+                    <td width="33%">
+                        <div id="imagePreviewContainer">
+                            <img
+                                id="imagePreview"
+                                src="#"
+                                alt="Image Preview"
+                                style="display: none"
+                            />
+                        </div>
+                    </td>
+                    <td>
+                        <div
+                            id="ocrResultLoader"
+                            class="spinner"
+                            style="display: none"
+                        ></div>
+                    </td>
+                    <td>
+                        <div id="ocrResults" style="display: none">
+                            <div class="form-group">
+                                <label for="playerName">Player Name</label>
+                                <input
+                                    type="text"
+                                    id="playerName"
+                                    class="form-control auto-copy"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="teamName">Team Name</label>
+                                <input
+                                    type="text"
+                                    id="teamName"
+                                    class="form-control auto-copy"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="cardSetYear">Card Set Year</label>
+                                <input
+                                    type="text"
+                                    id="cardSetYear"
+                                    class="form-control auto-copy"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="cardNumber">Card Number</label>
+                                <input
+                                    type="text"
+                                    id="cardNumber"
+                                    class="form-control auto-copy"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="serialNumber">Serial Number</label>
+                                <input
+                                    type="text"
+                                    id="serialNumber"
+                                    class="form-control auto-copy"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="cardType">Card Type</label>
+                                <input
+                                    type="text"
+                                    id="cardType"
+                                    class="form-control auto-copy"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="otherText">Other Text</label>
+                                <input
+                                    type="text"
+                                    id="otherText"
+                                    class="form-control auto-copy"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="fullText">Full</label>
+                                <textarea
+                                    id="fullText"
+                                    class="form-control auto-copy"
+                                ></textarea>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <div id="buttons">
+                <button id="search130Button" style="display: none">
+                    Search 130
+                </button>
+                <button id="searchEbayButton" style="display: none">
+                    Search on eBay
+                </button>
+            </div>
+
+            <div id="loadingIndicator" style="display: none">
+                <div class="spinner"></div>
+                <p>Searching eBay...</p>
+            </div>
+
+            <div id="errorMessage" class="error" style="display: none"></div>
+
+            <div id="ebayResultsContainer">
+                <h2 id="resultsTitle" style="display: none">Search Results</h2>
+                <div id="resultsList"></div>
+            </div>
+        </div>
+
+        <script src="static/app.js"></script>
+    </body>
+</html>
