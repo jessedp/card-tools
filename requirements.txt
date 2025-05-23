@@ -1,4 +1,3 @@
-python-dotenv
 pytesseract
 opencv-python
 numpy
@@ -9,8 +8,8 @@ pandas
 requests 
 
 requests-oauthlib
-aiohttp
 
+google
 python-dotenv
 
 uvicorn
