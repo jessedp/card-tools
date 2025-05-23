@@ -9,7 +9,7 @@ requests
 
 requests-oauthlib
 
-google
+google-generativeai
 python-dotenv
 
 uvicorn
