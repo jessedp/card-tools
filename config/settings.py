@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -15,7 +16,7 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 
 # Server settings
 HOST = os.environ.get("HOST", "0.0.0.0")
-PORT = int(os.environ.get("PORT", 8000))
+PORT = int(os.environ.get("PORT", 8050))
 
 # File paths
 OFFER_DATA_FILE = os.environ.get("OFFER_DATA_FILE", "offer_data.json")
@@ -28,7 +29,12 @@ GOOGLE_GEMINI_API_KEY = os.environ.get("GOOGLE_GEMINI_API_KEY", "")
 EBAY_CLIENT_ID = os.environ.get("EBAY_CLIENT_ID", "")
 EBAY_CLIENT_SECRET = os.environ.get("EBAY_CLIENT_SECRET", "")
 EBAY_REDIRECT_URI = os.environ.get("EBAY_REDIRECT_URI", "")
-EBAY_AUTH_TOKEN = os.environ.get("EBAY_AUTH_TOKEN", "")
+
+ebay_info = json.loads(open("config/ebay_oauth_token.json").read())
+EBAY_AUTH_TOKEN = ebay_info.get('AUTH_TOKEN', "")
+EBAY_REFRESH_TOKEN = ebay_info.get('REFRESH_TOKEN', "")
+
+# EBAY_AUTH_TOKEN = os.environ.get("EBAY_AUTH_TOKEN", "")
 EBAY_SCOPE = (
     "https://api.ebay.com/oauth/api_scope"  # Default scope, modify as needed
 )
