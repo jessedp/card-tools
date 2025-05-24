@@ -4,7 +4,6 @@ import requests
 from dotenv import load_dotenv
 import base64
 import json
-import gzip
 from urllib.parse import quote
 from .logger import setup_logger
 
@@ -106,7 +105,7 @@ def _load_token_data():
     try:
         with open(OAUTH_TOKEN_FILE, 'r') as f:
             token_data = json.load(f)
-        
+
         # Migrate existing token file if it doesn't have EXPIRES_AT
         if "EXPIRES_AT" not in token_data and token_data.get("AUTH_TOKEN"):
             logger.info("Migrating token file to include EXPIRES_AT field")
@@ -114,7 +113,7 @@ def _load_token_data():
             # This will trigger a refresh on next use, which is safe
             token_data["EXPIRES_AT"] = int(time.time()) + 7200
             _save_token_data(token_data)
-            
+
         return token_data
     except FileNotFoundError:
         raise Exception(f"Token file {OAUTH_TOKEN_FILE} not found.")
@@ -143,7 +142,7 @@ def _save_token_data(token_data):
 def _is_token_expired(auth_token):
     """
     Check if eBay user token is expired using stored expiration time.
-    
+
     Uses the EXPIRES_AT field stored in the OAuth token file to determine expiration.
     If no expiration time is stored, considers the token expired to force refresh.
 
@@ -157,18 +156,18 @@ def _is_token_expired(auth_token):
         # Load token data to check stored expiration
         token_data = _load_token_data()
         expires_at = token_data.get("EXPIRES_AT")
-        
+
         if not expires_at:
             logger.warning("No EXPIRES_AT found in token file - considering expired")
             return True
-        
+
         current_time = int(time.time())
         # Consider expired if expiring within 5 minutes (300 seconds)
         buffer_time = 300
-        
+
         is_expired = current_time >= (expires_at - buffer_time)
         logger.info(f"Token expires at {expires_at}, current time {current_time}, expired: {is_expired}")
-        
+
         return is_expired
 
     except Exception as e:

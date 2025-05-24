@@ -3,7 +3,6 @@ import hashlib
 import json
 
 from urllib.parse import urlparse
-import ssl
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -47,7 +46,7 @@ app.mount("/static", StaticFiles(directory="web/static"), name="static")
 async def search_ebay(imageFile: UploadFile = File(...)):
     try:
         image_data = await imageFile.read()
-        results = search_ebay_by_image(image_data, imageFile.content_type)
+        results = search_ebay_by_image(image_data, str(imageFile.content_type))
         return JSONResponse(content=results)
     except Exception as e:
         logger.error(f"eBay search failed: {e}")
@@ -136,20 +135,6 @@ async def add_order_to_sheets(order: dict):
             status_code=500, detail=f"Failed to add to Google Sheets: {str(e)}"
         )
 
-
-@app.post("/api/add-to-sheets")
-async def add_to_sheets(order: dict):
-    try:
-        return await add_order_to_sheets(order)
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to add to Google Sheets: {str(e)}",
-        )
-
-
 @app.get("/api/ebay-oauth-url")
 async def get_ebay_oauth_url():
     """Generate eBay OAuth authorization URL for popup authentication."""
@@ -157,9 +142,9 @@ async def get_ebay_oauth_url():
         # Use eBay RuName - eBay will redirect to configured callback URLs
         redirect_uri = "jesse_peterson-jessepet-UserSc-dhzfjwzn"
         state = "ebay_oauth_" + str(int(time.time()))  # Add timestamp for security
-        
+
         auth_url = generate_oauth_authorization_url(redirect_uri, state)
-        
+
         return JSONResponse(content={
             "auth_url": auth_url,
             "state": state
@@ -201,7 +186,7 @@ async def ebay_oauth_accept(
         </html>
         """
         return Response(content=html_content, media_type="text/html")
-    
+
     if not code:
         html_content = """
         <!DOCTYPE html>
@@ -227,7 +212,7 @@ async def ebay_oauth_accept(
         </html>
         """
         return Response(content=html_content, media_type="text/html")
-    
+
     # Return success page that communicates with popup opener
     html_content = f"""
     <!DOCTYPE html>
@@ -325,8 +310,8 @@ async def ebay_exchange_token(request_data: dict):
         # Use the same RuName as in the authorization request
         redirect_uri = "jesse_peterson-jessepet-UserSc-dhzfjwzn"
 
-        # Exchange code for tokens
-        tokens = exchange_code_for_tokens(code, redirect_uri)
+        # Exchange code for tokens (also perists them)
+        exchange_code_for_tokens(code, redirect_uri)
 
         return JSONResponse(content={
             "success": True,
@@ -358,20 +343,20 @@ async def ebay_token_status():
     """Check eBay token expiration status."""
     try:
         from web.app.ebay import _load_token_data, _is_token_expired
-        
+
         token_data = _load_token_data()
         auth_token = token_data.get("AUTH_TOKEN", "")
         expires_at = token_data.get("EXPIRES_AT")
-        
+
         if not auth_token:
             return JSONResponse(content={
                 "status": "no_token",
                 "message": "No AUTH_TOKEN found"
             })
-        
+
         is_expired = _is_token_expired(auth_token)
         current_time = int(time.time())
-        
+
         status_info = {
             "status": "expired" if is_expired else "valid",
             "expires_at": expires_at,
@@ -379,143 +364,15 @@ async def ebay_token_status():
             "is_expired": is_expired,
             "has_refresh_token": bool(token_data.get("REFRESH_TOKEN")),
         }
-        
+
         if expires_at:
             status_info["seconds_until_expiry"] = expires_at - current_time
-            
+
         return JSONResponse(content=status_info)
-        
+
     except Exception as e:
         logger.error(f"Token status check failed: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-# logger.info("OCR data FROM CACHE...")
-async def add_order_to_sheets2(order: dict):
-    # Google Sheets API configuration
-    # Replace with your actual credentials file path
-    credentials_path = "web/app/credentials.json"
-    # Replace with your actual spreadsheet ID
-    spreadsheet_id = "your-spreadsheet-id"
-    sheet_name = "Sheet1"
-
-    try:
-        # Authenticate with Google Sheets API
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
-        ]
-        credentials = Credentials.from_service_account_file(
-            credentials_path, scopes=scopes
-        )
-        gc = gspread.service_account(filename=credentials_path)
-
-        # Open the spreadsheet and get the worksheet
-        sh = gc.open_by_key(spreadsheet_id)
-        worksheet = sh.worksheet(sheet_name)
-
-        # Extract the required data from the order
-        order_id = order.get("orderId", "")
-
-        # Extract lastModifiedDate from paymentSummary
-        payment_summary = order.get("paymentSummary", {})
-        payments = payment_summary.get("payments", [])
-        sale_date = payments[0].get("paymentDate", "") if payments else ""
-
-        line_items = order.get("lineItems", [])
-        desc = "\\n".join([item.get("title", "") for item in line_items])
-        sold = sum(
-            float(item.get("lineItemCost", {}).get("value", 0))
-            for item in line_items
-        )
-        shipping = sum(
-            float(
-                item.get("deliveryCost", {})
-                .get("shippingCost", {})
-                .get("value", 0)
-            )
-            for item in line_items
-            if item.get("deliveryCost")
-            and item.get("deliveryCost").get("shippingCost")
-        )
-        total_marketplace_fee = order.get("totalMarketplaceFee", {}).get(
-            "value", 0
-        )
-
-        # Prepare the data for Google Sheets
-        data = [
-            sale_date,  # A
-            order_id,  # B
-            desc,  # C
-            "",  # D (empty)
-            "",  # E (empty)
-            sold,  # F
-            shipping,  # G
-            "",  # H (empty)
-            "",  # I (empty)
-            total_marketplace_fee,  # J
-        ]
-
-        # Find the first empty row based on the sale_date column (column A)
-        sale_dates = worksheet.col_values(1)  # Column A
-        first_empty_row = len(sale_dates) + 1
-
-        # Add the data to the first empty row
-        worksheet.insert_row(data, first_empty_row)
-
-        return {"message": "Order added to Google Sheets successfully!"}
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to add to Google Sheets: {str(e)}"
-        )
-    # Extract the required data from the order
-    order_id = order.get("orderId", "")
-
-    # Extract lastModifiedDate from paymentSummary
-    payment_summary = order.get("paymentSummary", {})
-    payments = payment_summary.get("payments", [])
-    sale_date = payments[0].get("paymentDate", "") if payments else ""
-
-    line_items = order.get("lineItems", [])
-    desc = "\\n".join([item.get("title", "") for item in line_items])
-    sold = sum(
-        float(item.get("lineItemCost", {}).get("value", 0))
-        for item in line_items
-    )
-    shipping = sum(
-        float(
-            item.get("deliveryCost", {}).get("shippingCost", {}).get("value", 0)
-        )
-        for item in line_items
-        if item.get("deliveryCost")
-        and item.get("deliveryCost").get("shippingCost")
-    )
-    total_marketplace_fee = order.get("totalMarketplaceFee", {}).get("value", 0)
-
-    # Prepare the data for Google Sheets
-    data = {
-        "order_id": order_id,
-        "sale_date": sale_date,
-        "desc": desc,
-        "sold": sold,
-        "shipping": shipping,
-        "fees": total_marketplace_fee,
-    }
-    # Replace with your actual Google Sheets API endpoint
-    google_sheets_api_url = "https://your-google-sheets-api.com/add-row"
-
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(google_sheets_api_url, json=data)
-            response.raise_for_status()
-            return response.json()
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=e.response.status_code,
-            detail=f"Google Sheets API error: {e.response.text}",
-        )
-
 
 @app.post("/api/add-to-sheets")
 async def add_to_sheets(order: dict):
@@ -523,10 +380,6 @@ async def add_to_sheets(order: dict):
         return await add_order_to_sheets(order)
     except HTTPException as e:
         raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to add to Google Sheets: {str(e)}"
-        )
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -675,8 +528,3 @@ async def ocr_image(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"OCR failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/ebay-orders")
-async def ebay_orders_page():
-    return FileResponse("web/static/ebay-orders.html")
