@@ -5,11 +5,12 @@ boto3
 llm
 pyexcel-ods
 pandas
-requests 
+requests
 
 requests-oauthlib
 
 google-generativeai
+gspread
 python-dotenv
 
 uvicorn
