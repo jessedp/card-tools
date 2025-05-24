@@ -39,6 +39,7 @@ coverage.xml
 # Environment variables
 .env
 .env.local
+web/app/credentials.json
 
 # Local development settings
 local_settings.py
