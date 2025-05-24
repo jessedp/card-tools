@@ -5,18 +5,18 @@ import uuid
 
 from web.app.logger import setup_logger
 
-router = APIRouter(
-    prefix="/ps"
-)
+router = APIRouter(prefix="/ps")
 
-logger = setup_logger()
+logger = setup_logger("pubsub")
 
 # Store active connections
 active_connections: Dict[str, WebSocket] = {}
 
+
 class DataPayload(BaseModel):
     client_id: str
     data: Any
+
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -41,6 +41,7 @@ async def websocket_endpoint(websocket: WebSocket):
         if client_id in active_connections:
             del active_connections[client_id]
 
+
 @router.post("/publish")
 async def publish_data(payload: DataPayload):
     client_id = payload.client_id
@@ -62,6 +63,8 @@ async def publish_data(payload: DataPayload):
         return {"status": "error", "message": str(e)}
 
     return {"status": "success", "message": "Data sent successfully"}
+
+
 # Optional endpoint to get all active client IDs
 @router.get("/clients")
 async def get_clients():
