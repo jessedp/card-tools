@@ -61,10 +61,6 @@ def analyze_trading_card(image_path: str) -> str:
     # --- 1. Validate and Load Image ---
     try:
         img = Image.open(image_path)
-        # Optional: Add more validation (file size, dimensions, etc.) if needed
-        print(
-            f"Image loaded successfully ({img.format}, {img.size}, {img.mode})"
-        )
     except FileNotFoundError:
         return f"Error: Image file not found at '{image_path}'."
     except Exception as e:
@@ -92,7 +88,7 @@ def analyze_trading_card(image_path: str) -> str:
         return f"Error creating Gemini model instance: {e}"
 
     # --- 4. Send Request to Gemini API ---
-    print("Sending request to Gemini API...")
+    # print("Sending request to Gemini API...")
     try:
         # Prepare the content list: prompt first, then the image
         content_parts = [prompt, img]
@@ -108,7 +104,7 @@ def analyze_trading_card(image_path: str) -> str:
         )
 
         # --- 5. Process and Return Response ---
-        print("Received response from Gemini API.")
+        # print("Received response from Gemini API.")
         # Make sure response.text exists and is not empty
         if response.text:
             # return OCRResponse.model_validate_json(response.text.strip())

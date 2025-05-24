@@ -5,10 +5,14 @@ import argparse
 import glob
 import subprocess
 import math
+import json
+import re
+import hashlib
 
 import cv2
 import numpy as np
-import pytesseract
+
+from analyze_card import analyze_trading_card
 
 
 def find_rectangles_with_morphology(
@@ -618,8 +622,6 @@ def trim_image(image_path, output_dir):
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
-    return None
-
 
 def process_image(
     image_path, output_dir, max_rectangles=5, min_area=500000, draw_contours=False
@@ -644,8 +646,51 @@ def process_image(
     )
 
     # Step 2: Trim whitespace from all cropped images
+    trimmed_paths = []
     for cropped_path in cropped_paths:
-        trim_image(cropped_path, output_dir)
+        trimmed_path = trim_image(cropped_path, output_dir)
+        if trimmed_path:
+            trimmed_paths.append(trimmed_path)
+
+    # Step 3: OCR card
+    for trimmed_path in trimmed_paths:
+        try:
+            # Analyze the card using OCR
+            ocr_result = analyze_trading_card(trimmed_path)
+            
+            # Parse the JSON response
+            ocr_data = json.loads(ocr_result)
+            
+            # Check if player_name exists and rename file if so
+            final_image_path = trimmed_path
+            if ocr_data.get("player_name"):
+                # Make player name file system safe - replace spaces with underscores and remove invalid chars
+                safe_player_name = re.sub(r'[<>:"/\\|?*]', '_', ocr_data["player_name"])
+                safe_player_name = safe_player_name.replace(' ', '_').strip()
+                
+                # Create new filename with player name
+                dir_name = os.path.dirname(trimmed_path)
+                original_filename = os.path.basename(trimmed_path)
+                name, ext = os.path.splitext(original_filename)
+                new_filename = f"{safe_player_name}-{original_filename}"
+                final_image_path = os.path.join(dir_name, new_filename)
+                
+                # Rename the file
+                os.rename(trimmed_path, final_image_path)
+                print(f"Renamed {trimmed_path} to {final_image_path}")
+            
+            # Calculate MD5 hash of the final image file
+            with open(final_image_path, 'rb') as img_file:
+                img_hash = hashlib.md5(img_file.read()).hexdigest()
+            
+            # Save JSON data using MD5 hash as filename
+            json_filename = os.path.join(os.path.dirname(final_image_path), f"{img_hash}.json")
+            with open(json_filename, 'w') as json_file:
+                json.dump(ocr_data, json_file, indent=2)
+            print(f"Saved OCR data to {json_filename}")
+            
+        except Exception as e:
+            print(f"Error during OCR analysis of {trimmed_path}: {e}")
 
 
 def main():
