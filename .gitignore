@@ -40,6 +40,7 @@ coverage.xml
 .env
 .env.local
 web/app/credentials.json
+web/config/ebay_oauth_token.json
 
 # Local development settings
 local_settings.py
