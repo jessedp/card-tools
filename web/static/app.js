@@ -563,7 +563,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // Simple client to send data to the UserScript via the server
 async function sendToUserScript(clientId, data) {
   try {
-    const response = await fetch("http://localhost:8000/ps/publish", {
+    const response = await fetch("https://local.lastseen.me:8050/ps/publish", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
