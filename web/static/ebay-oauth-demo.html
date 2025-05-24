@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eBay OAuth Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .oauth-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .oauth-button {
+            background: #0064d2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .oauth-button:hover {
+            background: #0056b3;
+        }
+        .oauth-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+        .instructions {
+            background: #e9ecef;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .test-section {
+            margin-top: 30px;
+            padding: 20px;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            background: #f8fff9;
+        }
+        .test-button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #218838;
+        }
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>eBay OAuth Demo</h1>
+
+        <div class="instructions">
+            <h3>Instructions for eBay RuName OAuth Flow:</h3>
+            <ol>
+                <li>Click the "Authenticate with eBay" button below</li>
+                <li>A popup window will open with eBay's OAuth page</li>
+                <li>Sign in to your eBay account and grant all requested permissions</li>
+                <li><strong>Important:</strong> After granting permissions, eBay will show a page saying "You can close this window"</li>
+                <li>A dialog will appear asking you to confirm completion or enter the authorization code</li>
+                <li>If you see an authorization code on the eBay page, copy and paste it into the dialog</li>
+                <li>Otherwise, click "Authentication Complete" to proceed</li>
+                <li>The tokens will be automatically saved and you can test the connection</li>
+            </ol>
+            <div style="background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 15px; border-radius: 4px; margin: 10px 0;">
+                <strong>Note:</strong> This app uses eBay's RuName flow, which doesn't automatically redirect back.
+                The system will detect when you've completed authentication and guide you through the final steps.
+            </div>
+        </div>
+</edits>
+
+<old_text>
+            <h3>How to integrate this in your own page:</h3>
+            <div class="code-block">
+&lt;!-- Include the OAuth script --&gt;
+&lt;script src="/static/ebay-oauth.js"&gt;&lt;/script&gt;
+
+&lt;!-- Create a button --&gt;
+&lt;button id="my-oauth-button"&gt;Authenticate with eBay&lt;/button&gt;
+
+&lt;script&gt;
+// Setup the OAuth button
+const button = document.getElementById('my-oauth-button');
+setupEbayOAuthButton(button, {
+    onSuccess: (data) =&gt; {
+        console.log('Success!', data);
+        alert('Authentication successful!');
+    },
+    onError: (error) =&gt; {
+        console.error('Error:', error);
+        alert('Authentication failed: ' + error.message);
+    },
+    onCancel: () =&gt; {
+        console.log('User cancelled');
+    }
+});
+&lt;/script&gt;
+            </div>
+
+            <h4>Or use the manager directly:</h4>
+            <div class="code-block">
+const manager = new EbayOAuthManager();
+
+await manager.startOAuthFlow({
+    onSuccess: (data) =&gt; {
+        // Handle success
+    },
+    onError: (error) =&gt; {
+        // Handle error
+    },
+    onCancel: () =&gt; {
+        // Handle cancellation
+    }
+});
+            </div>
+
+        <div class="oauth-section">
+            <h3>eBay Authentication</h3>
+            <p>Click the button below to start the OAuth flow:</p>
+            <button id="oauth-button" class="oauth-button">Authenticate with eBay</button>
+            <div id="oauth-status" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Authentication</h3>
+            <p>After successful authentication, test the connection:</p>
+            <button id="test-orders" class="test-button" disabled>Fetch eBay Orders</button>
+            <button id="test-token" class="test-button" disabled>Test Token Validity</button>
+            <div id="test-status" class="status"></div>
+            <div id="test-results" class="code-block" style="display: none;"></div>
+        </div>
+
+        <div class="instructions">
+            <h3>How to integrate this in your own page:</h3>
+            <div class="code-block">
+&lt;!-- Include the OAuth script --&gt;
+&lt;script src="/static/ebay-oauth.js"&gt;&lt;/script&gt;
+
+&lt;!-- Create a button --&gt;
+&lt;button id="my-oauth-button"&gt;Authenticate with eBay&lt;/button&gt;
+
+&lt;script&gt;
+// Setup the OAuth button
+const button = document.getElementById('my-oauth-button');
+setupEbayOAuthButton(button, {
+    onSuccess: (data) =&gt; {
+        console.log('Success!', data);
+        alert('Authentication successful!');
+    },
+    onError: (error) =&gt; {
+        console.error('Error:', error);
+        alert('Authentication failed: ' + error.message);
+    },
+    onCancel: () =&gt; {
+        console.log('User cancelled');
+    }
+});
+&lt;/script&gt;
+            </div>
+
+            <h4>Or use the manager directly:</h4>
+            <div class="code-block">
+const manager = new EbayOAuthManager();
+
+await manager.startOAuthFlow({
+    onSuccess: (data) =&gt; {
+        // Handle success
+    },
+    onError: (error) =&gt; {
+        // Handle error
+    },
+    onCancel: () =&gt; {
+        // Handle cancellation
+    }
+});
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/ebay-oauth.js"></script>
+    <script>
+        // Setup the main OAuth button
+        const oauthButton = document.getElementById('oauth-button');
+        const oauthStatus = document.getElementById('oauth-status');
+        const testOrdersButton = document.getElementById('test-orders');
+        const testTokenButton = document.getElementById('test-token');
+        const testStatus = document.getElementById('test-status');
+        const testResults = document.getElementById('test-results');
+
+        function showStatus(element, message, type) {
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        function hideStatus(element) {
+            element.style.display = 'none';
+        }
+
+        // Setup OAuth button (with enhanced messaging for RuName flow)
+        setupEbayOAuthButton(oauthButton, {
+            onSuccess: (data) => {
+                showStatus(oauthStatus, 'eBay authentication successful! Tokens have been saved and are ready to use.', 'success');
+                testOrdersButton.disabled = false;
+                testTokenButton.disabled = false;
+            },
+            onError: (error) => {
+                showStatus(oauthStatus, `Authentication failed: ${error.message}. Try again or check the popup for completion messages.`, 'error');
+            },
+            onCancel: () => {
+                showStatus(oauthStatus, 'Authentication cancelled. You can try again when ready.', 'info');
+            }
+        });
+
+        // Test orders button
+        testOrdersButton.addEventListener('click', async () => {
+            testOrdersButton.disabled = true;
+            testOrdersButton.textContent = 'Fetching...';
+            hideStatus(testStatus);
+            testResults.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/ebay-orders');
+                const data = await response.json();
+
+                if (response.ok) {
+                    showStatus(testStatus, `Successfully fetched ${data.length || 0} orders`, 'success');
+                    testResults.textContent = JSON.stringify(data, null, 2);
+                    testResults.style.display = 'block';
+                } else {
+                    showStatus(testStatus, `Failed to fetch orders: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(testStatus, `Error: ${error.message}`, 'error');
+            } finally {
+                testOrdersButton.disabled = false;
+                testOrdersButton.textContent = 'Fetch eBay Orders';
+            }
+        });
+
+        // Test token button
+        testTokenButton.addEventListener('click', async () => {
+            testTokenButton.disabled = true;
+            testTokenButton.textContent = 'Testing...';
+            hideStatus(testStatus);
+            testResults.style.display = 'none';
+
+            try {
+                // Test by making a simple API call
+                const response = await fetch('/api/ebay-orders');
+
+                if (response.ok) {
+                    showStatus(testStatus, 'Token is valid and working!', 'success');
+                } else if (response.status === 401) {
+                    showStatus(testStatus, 'Token is invalid or expired. Please re-authenticate.', 'error');
+                } else {
+                    const data = await response.json();
+                    showStatus(testStatus, `Token test failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(testStatus, `Error testing token: ${error.message}`, 'error');
+            } finally {
+                testTokenButton.disabled = false;
+                testTokenButton.textContent = 'Test Token Validity';
+            }
+        });
+    </script>
+</body>
+</html>
