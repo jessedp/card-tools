@@ -13,6 +13,7 @@ import cv2
 import numpy as np
 
 from analyze_card import analyze_trading_card
+from scripts.trim_whitespace import trim_image
 
 
 def find_rectangles_with_morphology(
@@ -584,45 +585,6 @@ def crop_and_rotate_rectangles(
     return cropped_image_paths
 
 
-def trim_image(image_path, output_dir):
-    """
-    Trims whitespace from a single image using ImageMagick's convert.
-
-    Args:
-        image_path (str): Path to the input image.
-        output_dir (str): Directory to save the trimmed image.
-
-    Returns:
-        str: Path to the saved trimmed image.
-    """
-    try:
-        filename = os.path.basename(image_path)
-        name, ext = os.path.splitext(filename)
-
-        # Format should be ORIGINAL_FILE-cropped-X-trimmed.originalformat
-        if "-cropped-" in name:
-            output_filename = f"{name}-trimmed{ext}"
-        else:
-            output_filename = f"{name}-trimmed{ext}"
-
-        # Save to the trimmed subdirectory
-        trimmed_dir = os.path.join(output_dir, "trimmed")
-        output_path = os.path.join(trimmed_dir, output_filename)
-
-        subprocess.run(
-            ["convert", image_path, "-fuzz", "35%", "-trim", output_path], check=True
-        )
-        print(f"Trimmed image saved to: {output_path}")
-        return output_path
-
-    except subprocess.CalledProcessError as e:
-        print(f"Error: ImageMagick command failed for '{image_path}': {e}")
-    except FileNotFoundError:
-        print(f"Error: ImageMagick 'convert' command not found.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-
-
 def process_image(
     image_path, output_dir, max_rectangles=5, min_area=500000, draw_contours=False
 ):
@@ -648,7 +610,8 @@ def process_image(
     # Step 2: Trim whitespace from all cropped images
     trimmed_paths = []
     for cropped_path in cropped_paths:
-        trimmed_path = trim_image(cropped_path, output_dir)
+        trimmed_dir = os.path.join(output_dir, "trimmed")
+        trimmed_path = trim_image(cropped_path, trimmed_dir)
         if trimmed_path:
             trimmed_paths.append(trimmed_path)
 
@@ -657,38 +620,38 @@ def process_image(
         try:
             # Analyze the card using OCR
             ocr_result = analyze_trading_card(trimmed_path)
-            
+
             # Parse the JSON response
             ocr_data = json.loads(ocr_result)
-            
+
             # Check if player_name exists and rename file if so
             final_image_path = trimmed_path
             if ocr_data.get("player_name"):
                 # Make player name file system safe - replace spaces with underscores and remove invalid chars
                 safe_player_name = re.sub(r'[<>:"/\\|?*]', '_', ocr_data["player_name"])
                 safe_player_name = safe_player_name.replace(' ', '_').strip()
-                
+
                 # Create new filename with player name
                 dir_name = os.path.dirname(trimmed_path)
                 original_filename = os.path.basename(trimmed_path)
                 name, ext = os.path.splitext(original_filename)
                 new_filename = f"{safe_player_name}-{original_filename}"
                 final_image_path = os.path.join(dir_name, new_filename)
-                
+
                 # Rename the file
                 os.rename(trimmed_path, final_image_path)
                 print(f"Renamed {trimmed_path} to {final_image_path}")
-            
+
             # Calculate MD5 hash of the final image file
             with open(final_image_path, 'rb') as img_file:
                 img_hash = hashlib.md5(img_file.read()).hexdigest()
-            
+
             # Save JSON data using MD5 hash as filename
             json_filename = os.path.join(os.path.dirname(final_image_path), f"{img_hash}.json")
             with open(json_filename, 'w') as json_file:
                 json.dump(ocr_data, json_file, indent=2)
             print(f"Saved OCR data to {json_filename}")
-            
+
         except Exception as e:
             print(f"Error during OCR analysis of {trimmed_path}: {e}")
 
@@ -750,4 +713,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+        exit(0)
+    except KeyboardInterrupt:
+        print("...cancelling")
+        exit(0)
+    except Exception as e:
+        print(f"Error: {e}")
+        exit(1)

@@ -5,18 +5,29 @@ import argparse
 import glob
 
 
-def trim_image(image_path):
-    """Trims whitespace from a single image using ImageMagick's convert."""
+def trim_image(image_path, output_dir="."):
+    """
+    Trims whitespace from a single image using ImageMagick's convert.
 
+    Args:
+        image_path (str): Path to the input image.
+        output_dir (str): Directory to save the trimmed image.
+
+    Returns:
+        str: Path to the saved trimmed image.
+    """
     try:
         filename = os.path.basename(image_path)
         name, ext = os.path.splitext(filename)
-        output_file = f"{name}_trimmed{ext}"
+        output_filename = f"{name}-trimmed{ext}"
+
+        output_path = os.path.join(output_dir, output_filename)
 
         subprocess.run(
-            ["convert", image_path, "-fuzz", "35%", "-trim", output_file], check=True
+            ["convert", image_path, "-fuzz", "35%", "-trim", output_path], check=True
         )
-        print(f"Trimmed image saved to: {output_file}")
+        print(f"Trimmed image saved to: {output_path}")
+        return output_path
 
     except subprocess.CalledProcessError as e:
         print(f"Error: ImageMagick command failed for '{image_path}': {e}")
