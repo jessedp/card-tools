@@ -38,3 +38,4 @@ EBAY_REFRESH_TOKEN = ebay_info.get('REFRESH_TOKEN', "")
 EBAY_SCOPE = (
     "https://api.ebay.com/oauth/api_scope"  # Default scope, modify as needed
 )
+

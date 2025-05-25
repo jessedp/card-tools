@@ -9,4 +9,8 @@ load_dotenv()
 # ssl_context.load_cert_chain('cert.pem', keyfile='key.pem')
 
 if __name__ == "__main__":
-    uvicorn.run("web.app.main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8050)), ssl_keyfile='key.pem', ssl_certfile='cert.pem')
+    uvicorn.run("web.app.main:app",
+        host="0.0.0.0", port=int(os.environ.get("PORT", 8050)),
+        ssl_keyfile='key.pem', ssl_certfile='cert.pem',
+        reload=True
+    )

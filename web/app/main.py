@@ -6,22 +6,25 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+from fastapi import Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
 from fastapi.middleware.cors import CORSMiddleware
 
 import httpx
 
-from web.app.ebay import search_ebay_by_image, get_ebay_orders, generate_oauth_authorization_url, exchange_code_for_tokens
-from web.app.logger import setup_logger
+from web.app.google_api import add_order_to_sheets
+
+import web.app.ebay_api as ebay_api
+
+from .logger import setup_logger
 from analyze_card import analyze_trading_card, OCRResponse
 
 
-from .routers import pubsub
+from .routers import pubsub, ebay_oauth
 
-from typing import Optional
-import time
-
-import gspread
-from google.oauth2.service_account import Credentials
 
 logger = setup_logger()
 
@@ -35,6 +38,8 @@ app.add_middleware(
 )
 
 app.include_router(pubsub.router)
+app.include_router(ebay_oauth.router)
+# app.include_router(ebay.router)
 
 # Create cache directory if it doesn't exist
 os.makedirs("cache", exist_ok=True)
@@ -46,281 +51,18 @@ app.mount("/static", StaticFiles(directory="web/static"), name="static")
 async def search_ebay(imageFile: UploadFile = File(...)):
     try:
         image_data = await imageFile.read()
-        results = search_ebay_by_image(image_data, str(imageFile.content_type))
+        results = ebay_api.search_ebay_by_image(
+            image_data, str(imageFile.content_type)
+        )
         return JSONResponse(content=results)
     except Exception as e:
         logger.error(f"eBay search failed: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-async def add_order_to_sheets(order: dict):
-    # Google Sheets API configuration
-    # Replace with your actual credentials file path
-    credentials_path = "web/app/credentials.json"
-    # Replace with your actual spreadsheet ID
-    spreadsheet_id = "1RQENLNjh4ULFAwGkyjIpibnZASaIqEkpCyLBVVWdGkA"
-    sheet_name = "Sheet1"
-
-    try:
-        # Authenticate with Google Sheets API
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
-        ]
-        credentials = Credentials.from_service_account_file(
-            credentials_path, scopes=scopes
-        )
-        gc = gspread.service_account(filename=credentials_path)
-
-        # Open the spreadsheet and get the worksheet
-        sh = gc.open_by_key(spreadsheet_id)
-
-        worksheet = sh.worksheet(sheet_name)
-
-        # Extract the required data from the order
-        order_id = order.get("orderId", "")
-
-        # Extract lastModifiedDate from paymentSummary
-        payment_summary = order.get("paymentSummary", {})
-        payments = payment_summary.get("payments", [])
-        sale_date = payments[0].get("paymentDate", "") if payments else ""
-
-        line_items = order.get("lineItems", [])
-        desc = "\\n".join([item.get("title", "") for item in line_items])
-        sold = sum(
-            float(item.get("lineItemCost", {}).get("value", 0))
-            for item in line_items
-        )
-        shipping = sum(
-            float(
-                item.get("deliveryCost", {})
-                .get("shippingCost", {})
-                .get("value", 0)
-            )
-            for item in line_items
-            if item.get("deliveryCost")
-            and item.get("deliveryCost").get("shippingCost")
-        )
-        total_marketplace_fee = order.get("totalMarketplaceFee", {}).get(
-            "value", 0
-        )
-
-        # Prepare the data for Google Sheets
-        data = [
-            sale_date,  # A
-            order_id,  # B
-            desc,  # C
-            "",  # D (empty)
-            "",  # E (empty)
-            sold,  # F
-            shipping,  # G
-            "",  # H (empty)
-            "",  # I (empty)
-            total_marketplace_fee,  # J
-        ]
-
-        # Find the first empty row based on the sale_date column (column A)
-        sale_dates = worksheet.col_values(1)  # Column A
-        first_empty_row = len(sale_dates) + 1
-
-        # Add the data to the first empty row
-        worksheet.insert_row(data, first_empty_row)
-
-        return {"message": "Order added to Google Sheets successfully!"}
-
-    except Exception as e:
-        logger.error(f"Google Sheets API error: {e}")
-        logger.info(f"Google Sheets API error: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to add to Google Sheets: {str(e)}"
-        )
-
-@app.get("/api/ebay-oauth-url")
-async def get_ebay_oauth_url():
-    """Generate eBay OAuth authorization URL for popup authentication."""
-    try:
-        # Use eBay RuName - eBay will redirect to configured callback URLs
-        redirect_uri = "jesse_peterson-jessepet-UserSc-dhzfjwzn"
-        state = "ebay_oauth_" + str(int(time.time()))  # Add timestamp for security
-
-        auth_url = generate_oauth_authorization_url(redirect_uri, state)
-
-        return JSONResponse(content={
-            "auth_url": auth_url,
-            "state": state
-        })
-    except Exception as e:
-        logger.error(f"Failed to generate OAuth URL: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-@app.get("/ebay-oauth-accept")
-async def ebay_oauth_accept(
-    code: Optional[str] = Query(None),
-    state: Optional[str] = Query(None),
-    error: Optional[str] = Query(None)
-):
-    """Handle eBay OAuth accept callback and return a page that communicates with popup opener."""
-    if error:
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>eBay OAuth Error</title>
-        </head>
-        <body>
-            <h1>Authorization Error</h1>
-            <p>Error: {error}</p>
-            <script>
-                if (window.opener) {{
-                    window.opener.postMessage({{
-                        type: 'ebay_oauth_error',
-                        error: '{error}'
-                    }}, '*');
-                    window.close();
-                }} else {{
-                    document.body.innerHTML += '<p>Please close this window and try again.</p>';
-                }}
-            </script>
-        </body>
-        </html>
-        """
-        return Response(content=html_content, media_type="text/html")
-
-    if not code:
-        html_content = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>eBay OAuth Error</title>
-        </head>
-        <body>
-            <h1>Authorization Error</h1>
-            <p>No authorization code received.</p>
-            <script>
-                if (window.opener) {
-                    window.opener.postMessage({
-                        type: 'ebay_oauth_error',
-                        error: 'No authorization code received'
-                    }, '*');
-                    window.close();
-                } else {
-                    document.body.innerHTML += '<p>Please close this window and try again.</p>';
-                }
-            </script>
-        </body>
-        </html>
-        """
-        return Response(content=html_content, media_type="text/html")
-
-    # Return success page that communicates with popup opener
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>eBay OAuth Success</title>
-    </head>
-    <body>
-        <h1>Authorization Successful</h1>
-        <p>Exchanging authorization code for tokens...</p>
-        <script>
-            // Exchange code for tokens immediately
-            fetch('/api/ebay-exchange-token', {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ code: '{code}', state: '{state}' }})
-            }})
-            .then(response => response.json())
-            .then(data => {{
-                if (window.opener) {{
-                    window.opener.postMessage({{
-                        type: 'ebay_oauth_success',
-                        data: data
-                    }}, '*');
-                    window.close();
-                }} else {{
-                    document.body.innerHTML = '<h1>Success!</h1><p>Authentication completed. You can close this window.</p>';
-                }}
-            }})
-            .catch(error => {{
-                if (window.opener) {{
-                    window.opener.postMessage({{
-                        type: 'ebay_oauth_error',
-                        error: error.message
-                    }}, '*');
-                    window.close();
-                }} else {{
-                    document.body.innerHTML = '<h1>Error</h1><p>Token exchange failed. Please try again.</p>';
-                }}
-            }});
-        </script>
-    </body>
-    </html>
-    """
-    return Response(content=html_content, media_type="text/html")
-
-
-@app.get("/ebay-oauth-decline")
-async def ebay_oauth_decline(
-    error: Optional[str] = Query(None),
-    state: Optional[str] = Query(None)
-):
-    """Handle eBay OAuth decline callback."""
-    error_message = error or "User declined authorization"
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>eBay OAuth Declined</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; text-align: center; margin: 50px; }}
-            h1 {{ color: #d32f2f; }}
-            p {{ color: #666; }}
-        </style>
-    </head>
-    <body>
-        <h1>Authorization Declined</h1>
-        <p>You declined to authorize the application or an error occurred.</p>
-        <p>Error: {error_message}</p>
-        <script>
-            if (window.opener) {{
-                window.opener.postMessage({{
-                    type: 'ebay_oauth_error',
-                    error: '{error_message}'
-                }}, '*');
-                window.close();
-            }} else {{
-                document.body.innerHTML += '<p>You can close this window now.</p>';
-            }}
-        </script>
-    </body>
-    </html>
-    """
-    return Response(content=html_content, media_type="text/html")
-
-
-@app.post("/api/ebay-exchange-token")
-async def ebay_exchange_token(request_data: dict):
-    """Exchange authorization code for eBay tokens."""
-    try:
-        code = request_data.get("code")
-        if not code:
-            return JSONResponse(status_code=400, content={"error": "Authorization code is required"})
-
-        # Use the same RuName as in the authorization request
-        redirect_uri = "jesse_peterson-jessepet-UserSc-dhzfjwzn"
-
-        # Exchange code for tokens (also perists them)
-        exchange_code_for_tokens(code, redirect_uri)
-
-        return JSONResponse(content={
-            "success": True,
-            "message": "Tokens obtained and saved successfully"
-        })
-
-    except Exception as e:
-        logger.error(f"Token exchange failed: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+@app.get("/")
+async def index():
+    return FileResponse("web/static/index.html")
 
 
 @app.get("/ebay-orders")
@@ -328,51 +70,15 @@ async def ebay_orders_page():
     return FileResponse("web/static/ebay-orders.html")
 
 
-@app.get("/ebay-oauth-demo")
-async def ebay_oauth_demo():
-    return FileResponse("web/static/ebay-oauth-demo.html")
-
-
-@app.get("/ebay-oauth-test")
-async def ebay_oauth_test():
-    return FileResponse("web/static/ebay-oauth-test.html")
-
-
-@app.get("/api/ebay-token-status")
-async def ebay_token_status():
-    """Check eBay token expiration status."""
+@app.get("/api/ebay-orders")
+async def ebay_orders():
     try:
-        from web.app.ebay import _load_token_data, _is_token_expired
-
-        token_data = _load_token_data()
-        auth_token = token_data.get("AUTH_TOKEN", "")
-        expires_at = token_data.get("EXPIRES_AT")
-
-        if not auth_token:
-            return JSONResponse(content={
-                "status": "no_token",
-                "message": "No AUTH_TOKEN found"
-            })
-
-        is_expired = _is_token_expired(auth_token)
-        current_time = int(time.time())
-
-        status_info = {
-            "status": "expired" if is_expired else "valid",
-            "expires_at": expires_at,
-            "current_time": current_time,
-            "is_expired": is_expired,
-            "has_refresh_token": bool(token_data.get("REFRESH_TOKEN")),
-        }
-
-        if expires_at:
-            status_info["seconds_until_expiry"] = expires_at - current_time
-
-        return JSONResponse(content=status_info)
-
+        results = ebay_api.get_ebay_orders()
+        return JSONResponse(content=results)
     except Exception as e:
-        logger.error(f"Token status check failed: {e}")
+        logger.error(f"eBay search failed: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
+
 
 @app.post("/api/add-to-sheets")
 async def add_to_sheets(order: dict):
@@ -385,21 +91,6 @@ async def add_to_sheets(order: dict):
             status_code=500,
             detail=f"Failed to add to Google Sheets: {str(e)}",
         )
-
-
-@app.get("/api/ebay-orders")
-async def ebay_orders():
-    try:
-        results = get_ebay_orders()
-        return JSONResponse(content=results)
-    except Exception as e:
-        logger.error(f"eBay search failed: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-@app.get("/")
-async def index():
-    return FileResponse("web/static/index.html")
 
 
 # Allowed image extensions and content types
@@ -528,3 +219,361 @@ async def ocr_image(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"OCR failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Initialize Jinja2Templates
+templates = Jinja2Templates(directory="web/app/templates")
+
+
+@app.get("/ebay/new-item", response_class=HTMLResponse)
+async def ebay_new_item_get(request: Request, item_id: str = None):
+    """
+    Renders the form to input eBay Item ID or shows results for GET requests.
+    """
+    if item_id is None:
+        return templates.TemplateResponse(
+            "new_item_form.html",
+            {
+                "request": request,
+                "item_id": None,
+                "new_item_id": None,
+                "fees": None,
+                "error": None,
+                "structured_errors": None,
+                "edit_url": None,
+            },
+        )
+
+    title, description, item_specifics_xml, get_item_error = (
+        ebay_api.get_item_details(item_id)
+    )
+    if get_item_error:
+        # Handle both old string format and new structured format
+        if (
+            isinstance(get_item_error, dict)
+            and get_item_error.get("type") == "structured"
+        ):
+            return templates.TemplateResponse(
+                "new_item_form.html",
+                {
+                    "request": request,
+                    "item_id": item_id,
+                    "new_item_id": None,
+                    "fees": None,
+                    "structured_errors": get_item_error["errors"],
+                    "error": None,
+                    "edit_url": None,
+                },
+            )
+        else:
+            return templates.TemplateResponse(
+                "new_item_form.html",
+                {
+                    "request": request,
+                    "item_id": item_id,
+                    "new_item_id": None,
+                    "fees": None,
+                    "error": f"Error fetching item details: {get_item_error}",
+                    "structured_errors": None,
+                    "edit_url": None,
+                },
+            )
+
+    new_item_id, fees, add_item_result = ebay.add_new_item(
+        title or "", description or "", item_specifics_xml or ""
+    )
+
+    # Check if it's an actual error (no new_item_id) or just warnings (has new_item_id)
+    if add_item_result and not new_item_id:
+        # This is an actual error - no listing was created
+        if (
+            isinstance(add_item_result, dict)
+            and add_item_result.get("type") == "structured"
+        ):
+            return templates.TemplateResponse(
+                "new_item_form.html",
+                {
+                    "request": request,
+                    "item_id": item_id,
+                    "new_item_id": None,
+                    "fees": None,
+                    "structured_errors": add_item_result["errors"],
+                    "error": None,
+                    "edit_url": None,
+                },
+            )
+        else:
+            return templates.TemplateResponse(
+                "new_item_form.html",
+                {
+                    "request": request,
+                    "item_id": item_id,
+                    "new_item_id": None,
+                    "fees": None,
+                    "error": f"Error creating new item: {add_item_result}",
+                    "structured_errors": None,
+                    "edit_url": None,
+                },
+            )
+
+    # Construct the edit draft URL
+    edit_url = f"https://www.ebay.com/sl/list?mode=SellLikeItem&draft_id={new_item_id}&ReturnURL=https%3A%2F%2Fwww.ebay.com%2Fsh%2Flst%2Fdrafts&DraftURL=https%3A%2F%2Fwww.ebay.com%2Fsh%2Flst%2Fdrafts"
+
+    # If there are warnings (add_item_result contains warnings), include them with the success
+    warnings = None
+    if (
+        add_item_result
+        and isinstance(add_item_result, dict)
+        and add_item_result.get("type") == "structured"
+    ):
+        warnings = add_item_result["errors"]  # These are actually warnings
+
+    return templates.TemplateResponse(
+        "new_item_form.html",
+        {
+            "request": request,
+            "item_id": item_id,
+            "new_item_id": new_item_id,
+            "fees": fees,
+            "edit_url": edit_url,
+            "error": None,
+            "structured_errors": warnings,
+        },
+    )
+
+
+@app.post("/ebay/new-item", response_class=HTMLResponse)
+async def ebay_new_item_post(request: Request):
+    """
+    Handles POST requests with image uploads for creating new eBay listings.
+    """
+    import os
+    import hashlib
+
+    try:
+        # Parse form data
+        form = await request.form()
+        item_id = form.get("item_id")
+
+        if not item_id:
+            return templates.TemplateResponse(
+                "new_item_form.html",
+                {
+                    "request": request,
+                    "item_id": None,
+                    "new_item_id": None,
+                    "fees": None,
+                    "error": "Item ID is required",
+                    "structured_errors": None,
+                    "edit_url": None,
+                },
+            )
+
+        # Get item details
+        title, description, item_specifics_xml, get_item_error = (
+            ebay_api.get_item_details(item_id)
+        )
+        if get_item_error:
+            # Handle both old string format and new structured format
+            if (
+                isinstance(get_item_error, dict)
+                and get_item_error.get("type") == "structured"
+            ):
+                return templates.TemplateResponse(
+                    "new_item_form.html",
+                    {
+                        "request": request,
+                        "item_id": item_id,
+                        "new_item_id": None,
+                        "fees": None,
+                        "structured_errors": get_item_error["errors"],
+                        "error": None,
+                        "edit_url": None,
+                    },
+                )
+            else:
+                return templates.TemplateResponse(
+                    "new_item_form.html",
+                    {
+                        "request": request,
+                        "item_id": item_id,
+                        "new_item_id": None,
+                        "fees": None,
+                        "error": f"Error fetching item details: {get_item_error}",
+                        "structured_errors": None,
+                        "edit_url": None,
+                    },
+                )
+
+        # Process uploaded images
+        picture_urls = []
+        upload_errors = []
+
+        # Get all uploaded files and sort by index
+        image_files = []
+        for key, file in form.items():
+            if (
+                key.startswith("image_")
+                and hasattr(file, "filename")
+                and getattr(file, "filename", None)
+            ):
+                try:
+                    index = int(key.split("_")[1])
+                    image_files.append((index, file))
+                except (ValueError, IndexError):
+                    continue
+
+        # Sort by index to maintain order
+        image_files.sort(key=lambda x: x[0])
+
+        # Upload each image to eBay
+        for index, file in image_files:
+            try:
+                # Read file content
+                file_content = await file.read()
+
+                # Save to cache
+                cache_dir = "cache"
+                os.makedirs(cache_dir, exist_ok=True)
+
+                # Create unique filename
+                file_hash = hashlib.md5(file_content).hexdigest()[:8]
+                cache_filename = (
+                    f"{item_id}_{index}_{file_hash}_{file.filename}"
+                )
+                cache_path = os.path.join(cache_dir, cache_filename)
+
+                with open(cache_path, "wb") as cache_file:
+                    cache_file.write(file_content)
+
+                # Upload to eBay
+                picture_url, upload_error = (
+                    ebay_api.upload_site_hosted_pictures(
+                        file_content, file.filename
+                    )
+                )
+
+                if upload_error:
+                    if (
+                        isinstance(upload_error, dict)
+                        and upload_error.get("type") == "structured"
+                    ):
+                        upload_errors.extend(upload_error["errors"])
+                    else:
+                        upload_errors.append(
+                            {
+                                "short_message": f"Image Upload Failed: {file.filename}",
+                                "long_message": str(upload_error),
+                                "error_code": "IMAGE_UPLOAD_ERROR",
+                                "severity": "Error",
+                                "classification": "RequestError",
+                            }
+                        )
+                else:
+                    picture_urls.append(picture_url)
+
+            except Exception as e:
+                upload_errors.append(
+                    {
+                        "short_message": f"Image Processing Failed: {file.filename}",
+                        "long_message": f"Failed to process image: {str(e)}",
+                        "error_code": "IMAGE_PROCESS_ERROR",
+                        "severity": "Error",
+                        "classification": "SystemError",
+                    }
+                )
+
+        # If there were image upload errors, return them
+        if upload_errors:
+            return templates.TemplateResponse(
+                "new_item_form.html",
+                {
+                    "request": request,
+                    "item_id": item_id,
+                    "new_item_id": None,
+                    "fees": None,
+                    "structured_errors": upload_errors,
+                    "error": None,
+                    "edit_url": None,
+                },
+            )
+
+        # Create the listing with uploaded images
+        new_item_id, fees, add_item_result = ebay_api.add_new_item(
+            title or "",
+            description or "",
+            item_specifics_xml or "",
+            picture_urls,
+        )
+
+        # Check if it's an actual error (no new_item_id) or just warnings (has new_item_id)
+        if add_item_result and not new_item_id:
+            # This is an actual error - no listing was created
+            if (
+                isinstance(add_item_result, dict)
+                and add_item_result.get("type") == "structured"
+            ):
+                return templates.TemplateResponse(
+                    "new_item_form.html",
+                    {
+                        "request": request,
+                        "item_id": item_id,
+                        "new_item_id": None,
+                        "fees": None,
+                        "structured_errors": add_item_result["errors"],
+                        "error": None,
+                        "edit_url": None,
+                    },
+                )
+            else:
+                return templates.TemplateResponse(
+                    "new_item_form.html",
+                    {
+                        "request": request,
+                        "item_id": item_id,
+                        "new_item_id": None,
+                        "fees": None,
+                        "error": f"Error creating new item: {add_item_result}",
+                        "structured_errors": None,
+                        "edit_url": None,
+                    },
+                )
+
+        # Construct the edit draft URL
+        edit_url = f"https://www.ebay.com/sl/list?mode=SellLikeItem&draft_id={new_item_id}&ReturnURL=https%3A%2F%2Fwww.ebay.com%2Fsh%2Flst%2Fdrafts&DraftURL=https%3A%2F%2Fwww.ebay.com%2Fsh%2Flst%2Fdrafts"
+
+        # If there are warnings (add_item_result contains warnings), include them with the success
+        warnings = None
+        if (
+            add_item_result
+            and isinstance(add_item_result, dict)
+            and add_item_result.get("type") == "structured"
+        ):
+            warnings = add_item_result["errors"]  # These are actually warnings
+
+        return templates.TemplateResponse(
+            "new_item_form.html",
+            {
+                "request": request,
+                "item_id": item_id,
+                "new_item_id": new_item_id,
+                "fees": fees,
+                "edit_url": edit_url,
+                "error": None,
+                "structured_errors": warnings,
+            },
+        )
+
+    except Exception as e:
+        return templates.TemplateResponse(
+            "new_item_form.html",
+            {
+                "request": request,
+                "item_id": None,
+                "new_item_id": None,
+                "fees": None,
+                "error": f"Unexpected error: {str(e)}",
+                "structured_errors": None,
+                "edit_url": None,
+            },
+        )

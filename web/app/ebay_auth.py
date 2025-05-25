@@ -6,17 +6,19 @@ import base64
 import json
 from urllib.parse import quote
 from .logger import setup_logger
+from config import settings
 
 load_dotenv()
 
-logger = setup_logger("ebay")
+logger = setup_logger(__name__)
 
 AUTH_TOKEN = os.getenv("EBAY_AUTH_TOKEN")
 CLIENT_ID = os.getenv("EBAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("EBAY_CLIENT_SECRET")
-MARKETPLACE_ID = "EBAY_US"
+
 TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
-OAUTH_TOKEN_FILE = "config/ebay_oauth_token.json"
+USER_OAUTH_TOKEN_FILE = "config/ebay_oauth_token.json"
+
 
 _token_cache = {"access_token": None, "expires_at": 0}
 
@@ -42,7 +44,7 @@ def get_ebay_user_token():
         Exception: If AUTH_TOKEN is empty, refresh fails, or token file issues
     """
     # Read tokens from JSON file
-    token_data = _load_token_data()
+    token_data = _load_user_token_data()
 
     auth_token = token_data.get("AUTH_TOKEN", "").strip()
     refresh_token = token_data.get("REFRESH_TOKEN", "").strip()
@@ -52,7 +54,7 @@ def get_ebay_user_token():
         raise Exception("AUTH_TOKEN is empty. Please provide a valid eBay user token.")
 
     # Check if token is expired
-    if _is_token_expired(auth_token):
+    if _is_user_token_expired(auth_token):
         logger.info("AUTH_TOKEN is expired, attempting to refresh...")
 
         if not refresh_token:
@@ -92,7 +94,7 @@ def get_ebay_user_token():
     return auth_token
 
 
-def _load_token_data():
+def _load_user_token_data():
     """
     Load token data from JSON file.
 
@@ -103,7 +105,7 @@ def _load_token_data():
         Exception: If file not found or contains invalid JSON
     """
     try:
-        with open(OAUTH_TOKEN_FILE, 'r') as f:
+        with open(USER_OAUTH_TOKEN_FILE, 'r') as f:
             token_data = json.load(f)
 
         # Migrate existing token file if it doesn't have EXPIRES_AT
@@ -116,9 +118,9 @@ def _load_token_data():
 
         return token_data
     except FileNotFoundError:
-        raise Exception(f"Token file {OAUTH_TOKEN_FILE} not found.")
+        raise Exception(f"Token file {USER_OAUTH_TOKEN_FILE} not found.")
     except json.JSONDecodeError as e:
-        raise Exception(f"Invalid JSON in token file {OAUTH_TOKEN_FILE}: {e}")
+        raise Exception(f"Invalid JSON in token file {USER_OAUTH_TOKEN_FILE}: {e}")
 
 
 def _save_token_data(token_data):
@@ -132,14 +134,14 @@ def _save_token_data(token_data):
         Exception: If file cannot be written
     """
     try:
-        with open(OAUTH_TOKEN_FILE, 'w') as f:
+        with open(USER_OAUTH_TOKEN_FILE, 'w') as f:
             json.dump(token_data, f, indent=2)
     except Exception as e:
         logger.error(f"Failed to save token data: {e}")
-        raise Exception(f"Failed to save updated tokens to {OAUTH_TOKEN_FILE}: {e}")
+        raise Exception(f"Failed to save updated tokens to {USER_OAUTH_TOKEN_FILE}: {e}")
 
 
-def _is_token_expired(auth_token):
+def _is_user_token_expired(auth_token):
     """
     Check if eBay user token is expired using stored expiration time.
 
@@ -154,7 +156,7 @@ def _is_token_expired(auth_token):
     """
     try:
         # Load token data to check stored expiration
-        token_data = _load_token_data()
+        token_data = _load_user_token_data()
         expires_at = token_data.get("EXPIRES_AT")
 
         if not expires_at:
@@ -415,65 +417,3 @@ def _encode_credentials():
 
     credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
     return base64.b64encode(credentials.encode()).decode()
-
-
-def search_ebay_by_image(image_bytes: bytes, image_type: str):
-    headers = {
-        "Authorization": f"Bearer {get_ebay_token()}",
-        "Content-Type": "application/json",
-        "X-EBAY-C-MARKETPLACE-ID": MARKETPLACE_ID,
-    }
-
-    url = "https://api.ebay.com/buy/browse/v1/item_summary/search_by_image"
-
-    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-
-    params = {"filter": "itemEndDate:[..2025-05-20T00:00:00Z]"}
-    payload = {"image": image_base64}  # The API expects base64-encoded string
-
-    response = requests.post(url, headers=headers, json=payload, params=params)
-    response.raise_for_status()
-    return response.json()
-
-
-def get_ebay_orders():
-    headers = {
-        "Authorization": f"Bearer {get_ebay_user_token()}",
-        "Content-Type": "application/json",
-    }
-
-    url = "https://api.ebay.com/sell/fulfillment/v1/order"
-    orders = []
-    offset = 0
-    limit = 100  # Maximum allowed limit
-
-    while True:
-        params = {
-            "limit": limit,
-            "offset": offset,
-            # "filter": "orderfulfillmentstatus:{FULFILLED|IN_PROGRESS}",
-        }
-
-        response = requests.get(url, headers=headers, params=params)
-
-        try:
-            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-            data = response.json()
-            orders.extend(data.get("orders", []))
-            break
-            if data.get("total") is None or len(orders) >= data.get("total"):
-                break
-
-            offset += limit
-
-        except requests.exceptions.HTTPError as e:
-            print(f"HTTP error occurred: {e}")
-            print(f"Response status code: {response.status_code}")
-            print(f"Response text: {response.text}")
-            break  # Exit the loop if there's an error
-
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            break  # Exit the loop if there's an error
-
-    return orders

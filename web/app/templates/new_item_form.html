@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>eBay New Item - Create Listing</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 20px; 
+            line-height: 1.6;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 800px;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        form { 
+            margin-bottom: 30px; 
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+        }
+        label { 
+            display: block; 
+            margin-bottom: 8px; 
+            font-weight: 500;
+            color: #495057;
+        }
+        input[type="text"] { 
+            width: 100%; 
+            max-width: 400px;
+            padding: 10px 12px; 
+            margin-bottom: 15px; 
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        }
+        button[type="submit"] { 
+            padding: 10px 20px; 
+            background-color: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 4px;
+            cursor: pointer; 
+            font-size: 1em;
+            font-weight: 500;
+        }
+        button[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+        .error { color: #dc3545; font-weight: 500; }
+        .success { color: #28a745; font-weight: 500; }
+        .error-container { margin: 20px 0; }
+        .error-item { 
+            margin: 15px 0; 
+            padding: 16px; 
+            border-left: 4px solid; 
+            background-color: #f9f9f9; 
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .error-severity-Error { 
+            border-left-color: #dc3545; 
+            background-color: #f8d7da; 
+            border: 1px solid #f5c6cb;
+        }
+        .error-severity-Warning { 
+            border-left-color: #ffc107; 
+            background-color: #fff3cd; 
+            border: 1px solid #ffeaa7;
+        }
+        .error-severity-Info { 
+            border-left-color: #17a2b8; 
+            background-color: #d1ecf1; 
+            border: 1px solid #bee5eb;
+        }
+        .error-header { 
+            font-weight: 600; 
+            margin-bottom: 8px; 
+            font-size: 1.05em;
+        }
+        .error-details { 
+            font-size: 0.85em; 
+            color: #6c757d; 
+            margin-top: 5px; 
+        }
+        .error-code { 
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; 
+            background: #e9ecef; 
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            font-size: 0.9em;
+            border: 1px solid #dee2e6;
+        }
+        .error-long-message { 
+            margin: 10px 0; 
+            line-height: 1.5; 
+            color: #495057;
+        }
+        .error-long-message a {
+            color: #007bff;
+            text-decoration: none;
+            border-bottom: 1px dotted #007bff;
+        }
+        .error-long-message a:hover {
+            color: #0056b3;
+            border-bottom: 1px solid #0056b3;
+        }
+        h1 { color: #343a40; margin-bottom: 30px; }
+        h2 { color: #495057; margin-bottom: 20px; font-size: 1.4em; }
+        .results-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+        }
+        .image-upload-section {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+        }
+        .image-dropzone {
+            border: 2px dashed #ced4da;
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+            background-color: white;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            width: 120px;
+            height: 160px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+        .image-dropzone:hover {
+            border-color: #007bff;
+            background-color: #f8f9ff;
+        }
+        .image-dropzone.dragover {
+            border-color: #28a745;
+            background-color: #d4edda;
+            border-style: solid;
+            transform: scale(1.02);
+        }
+        .image-dropzone.dragover::after {
+            content: "Drop images here!";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(40, 167, 69, 0.9);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .image-preview-container {
+            margin-top: 20px;
+            display: none;
+        }
+        .image-preview-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .image-preview-item {
+            position: relative;
+            width: 120px;
+            height: 160px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            overflow: hidden;
+            background-color: white;
+            cursor: move;
+            transition: all 0.3s ease;
+        }
+        .image-preview-item:hover {
+            border-color: #007bff;
+            box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+        }
+        .image-preview-item.dragging {
+            opacity: 0.5;
+            transform: scale(0.95);
+        }
+        .image-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .image-remove-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .image-remove-btn:hover {
+            background: #c82333;
+        }
+        .image-order-badge {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .upload-instructions {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+        #imageFileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Create New eBay Listing from Existing Item</h1>
+        
+        <form action="/ebay/new-item" method="POST" enctype="multipart/form-data" id="newItemForm">
+            <label for="item_id">Enter eBay Item ID:</label>
+            <input type="text" id="item_id" name="item_id" placeholder="e.g., 123456789012" value="{{ item_id or '' }}" required>
+            
+            <div class="image-upload-section">
+                <h3 style="margin-top: 0; color: #495057;">Product Images</h3>
+                <div class="image-preview-grid" id="imagePreviewGrid">
+                    <div class="image-dropzone" id="imageDropzone">
+                        <svg width="32" height="32" fill="#6c757d" viewBox="0 0 24 24" style="margin-bottom: 8px;">
+                            <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+                        </svg>
+                        <p style="margin: 5px 0; color: #6c757d; font-size: 0.8em; text-align: center;">Drag & drop or click</p>
+                        <button type="button" id="selectImagesBtn" style="background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7em;">Select</button>
+                    </div>
+                    <!-- Image previews will be added here -->
+                </div>
+                <input type="file" id="imageFileInput" multiple accept="image/*">
+
+                
+                <div class="upload-instructions">
+                    <p>• Upload up to 12 images • JPG, PNG, GIF formats • Max 7MB per image</p>
+                    <p>• Drag images to reorder them • First image will be the main listing photo</p>
+                </div>
+            </div>
+            
+            <button type="submit" id="createListingBtn">Create New Listing</button>
+        </form>
+
+        <div id="uploadProgress" style="display: none; margin-top: 20px;">
+            <div style="background: #e9ecef; border-radius: 4px; padding: 15px;">
+                <h4 style="margin: 0 0 10px 0; color: #495057;">Upload Progress</h4>
+                <div id="progressText">Preparing upload...</div>
+                <div style="background: #f8f9fa; border-radius: 4px; height: 20px; margin: 10px 0; overflow: hidden;">
+                    <div id="progressBar" style="background: #007bff; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+                <div id="progressDetails" style="font-size: 0.9em; color: #6c757d;"></div>
+            </div>
+        </div>
+
+        {% if item_id %}
+        <div class="results-section">
+            {% if error %}
+                <p class="error">Error: {{ error }}</p>
+            {% elif structured_errors %}
+                <div class="error-container">
+                    <h2>Issues Found:</h2>
+                    {% for error_item in structured_errors %}
+                        <div class="error-item error-severity-{{ error_item.severity }}">
+                            <div class="error-header">
+                                {{ error_item.short_message }}
+                                <span class="error-details">
+                                    [{{ error_item.severity }}] 
+                                    <span class="error-code">{{ error_item.error_code }}</span>
+                                </span>
+                            </div>
+                            {% if error_item.long_message != error_item.short_message %}
+                                <div class="error-long-message">
+                                    {% set long_msg = error_item.long_message %}
+                                    {% if 'https://' in long_msg %}
+                                        {% set before_url, url_and_after = long_msg.split('https://', 1) %}
+                                        {% set url_parts = url_and_after.split(' ', 1) %}
+                                        {% set url = 'https://' + url_parts[0] %}
+                                        {% set after_url = url_parts[1] if url_parts|length > 1 else '' %}
+                                        {{ before_url }}<a href="{{ url }}" target="_blank">{{ url }}</a>{{ ' ' + after_url if after_url }}
+                                    {% else %}
+                                        {{ long_msg }}
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            <div class="error-details">
+                                Classification: {{ error_item.classification }}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% elif new_item_id %}
+                <p class="success">New item draft created successfully!</p>
+                <p><strong>Original Item ID:</strong> {{ item_id }}</p>
+                <p><strong>New Item ID (Draft):</strong> {{ new_item_id }}</p>
+
+                {% if structured_errors %}
+                    <div class="error-container">
+                        <h2>Warnings:</h2>
+                        {% for error_item in structured_errors %}
+                            <div class="error-item error-severity-{{ error_item.severity }}">
+                                <div class="error-header">
+                                    {{ error_item.short_message }}
+                                    <span class="error-details">
+                                        [{{ error_item.severity }}] 
+                                        <span class="error-code">{{ error_item.error_code }}</span>
+                                    </span>
+                                </div>
+                                {% if error_item.long_message != error_item.short_message %}
+                                    <div class="error-long-message">
+                                        {% set long_msg = error_item.long_message %}
+                                        {% if 'https://' in long_msg %}
+                                            {% set before_url, url_and_after = long_msg.split('https://', 1) %}
+                                            {% set url_parts = url_and_after.split(' ', 1) %}
+                                            {% set url = 'https://' + url_parts[0] %}
+                                            {% set after_url = url_parts[1] if url_parts|length > 1 else '' %}
+                                            {{ before_url }}<a href="{{ url }}" target="_blank">{{ url }}</a>{{ ' ' + after_url if after_url }}
+                                        {% else %}
+                                            {{ long_msg }}
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                                <div class="error-details">
+                                    Classification: {{ error_item.classification }}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <h2>Fees:</h2>
+                {% if fees %}
+                    <ul>
+                        {% for fee in fees %}
+                            <li>{{ fee.name }}: {{ fee.fee }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No fees returned or fees data is empty.</p>
+                {% endif %}
+
+                {% if edit_url %}
+                    <p><a href="{{ edit_url }}" target="_blank" style="color: #007bff; text-decoration: none; font-weight: 500;">→ Edit Draft on eBay</a></p>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Image upload functionality
+        const imageDropzone = document.getElementById('imageDropzone');
+        const imageFileInput = document.getElementById('imageFileInput');
+        const selectImagesBtn = document.getElementById('selectImagesBtn');
+        const imagePreviewGrid = document.getElementById('imagePreviewGrid');
+        const newItemForm = document.getElementById('newItemForm');
+        let selectedImages = [];
+
+        // Drag and drop handlers
+        imageDropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            imageDropzone.classList.add('dragover');
+        });
+
+        imageDropzone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            imageDropzone.classList.remove('dragover');
+        });
+
+        imageDropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            imageDropzone.classList.remove('dragover');
+            console.log('Drop event triggered on dropzone');
+            console.log('Files dropped:', e.dataTransfer.files.length);
+            const files = Array.from(e.dataTransfer.files);
+            console.log('All files:', files.map(f => f.name + ' (' + f.type + ')'));
+            const imageFiles = files.filter(file => file.type.startsWith('image/'));
+            console.log('Image files filtered:', imageFiles.map(f => f.name));
+            handleImageFiles(imageFiles);
+        });
+
+        // Prevent default drag behaviors on document
+        document.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        document.addEventListener('drop', (e) => {
+            e.preventDefault();
+        });
+
+        // Click to select images
+        imageDropzone.addEventListener('click', () => {
+            imageFileInput.click();
+        });
+
+        selectImagesBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            imageFileInput.click();
+        });
+
+        imageFileInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            handleImageFiles(files);
+        });
+
+        function handleImageFiles(files) {
+            console.log('handleImageFiles called with', files.length, 'files');
+            files.forEach(file => {
+                console.log('Processing file:', file.name, 'type:', file.type, 'size:', file.size);
+                if (file.type.startsWith('image/') && file.size <= 7 * 1024 * 1024) { // 7MB limit
+                    if (selectedImages.length < 12) {
+                        const imageData = {
+                            file: file,
+                            id: Date.now() + Math.random(),
+                            url: URL.createObjectURL(file)
+                        };
+                        selectedImages.push(imageData);
+                        console.log('Added image:', file.name, 'total images:', selectedImages.length);
+                    } else {
+                        console.log('Max 12 images reached, skipping:', file.name);
+                    }
+                } else {
+                    console.log('File rejected:', file.name, 'type:', file.type, 'size:', file.size);
+                }
+            });
+            updateImagePreview();
+            imageFileInput.value = ''; // Reset input
+        }
+
+        function updateImagePreview() {
+            // Clear existing previews but keep the dropzone
+            const existingPreviews = imagePreviewGrid.querySelectorAll('.image-preview-item');
+            existingPreviews.forEach(item => item.remove());
+
+            selectedImages.forEach((imageData, index) => {
+                const previewItem = document.createElement('div');
+                previewItem.className = 'image-preview-item';
+                previewItem.draggable = true;
+                previewItem.dataset.imageId = imageData.id;
+
+                previewItem.innerHTML = `
+                    <img src="${imageData.url}" alt="Preview ${index + 1}">
+                    <button type="button" class="image-remove-btn" onclick="removeImage('${imageData.id}')">&times;</button>
+                    <div class="image-order-badge">${index + 1}</div>
+                `;
+
+                // Drag and drop for reordering
+                previewItem.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', imageData.id.toString());
+                    previewItem.classList.add('dragging');
+                });
+
+                previewItem.addEventListener('dragend', () => {
+                    previewItem.classList.remove('dragging');
+                });
+
+                previewItem.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+
+                previewItem.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const draggedImageId = e.dataTransfer.getData('text/plain');
+                    const dropImageId = imageData.id.toString();
+                    reorderImages(draggedImageId, dropImageId);
+                });
+
+                // Add images after the dropzone in order
+                imagePreviewGrid.appendChild(previewItem);
+            });
+        }
+
+        function removeImage(imageId) {
+            selectedImages = selectedImages.filter(img => img.id !== imageId);
+            updateImagePreview();
+        }
+
+        function reorderImages(draggedId, dropId) {
+            const draggedIndex = selectedImages.findIndex(img => img.id.toString() === draggedId.toString());
+            const dropIndex = selectedImages.findIndex(img => img.id.toString() === dropId.toString());
+
+            if (draggedIndex !== -1 && dropIndex !== -1 && draggedIndex !== dropIndex) {
+                const draggedImage = selectedImages.splice(draggedIndex, 1)[0];
+                selectedImages.splice(dropIndex, 0, draggedImage);
+                updateImagePreview();
+            }
+        }
+
+        // Form submission with images
+        newItemForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const itemId = document.getElementById('item_id').value;
+            if (!itemId) {
+                alert('Please enter an eBay Item ID');
+                return;
+            }
+
+            const createListingBtn = document.getElementById('createListingBtn');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const progressText = document.getElementById('progressText');
+            const progressBar = document.getElementById('progressBar');
+            const progressDetails = document.getElementById('progressDetails');
+            
+            const originalText = createListingBtn.textContent;
+            createListingBtn.textContent = 'Creating Listing...';
+            createListingBtn.disabled = true;
+            
+            // Show progress if images are being uploaded
+            if (selectedImages.length > 0) {
+                uploadProgress.style.display = 'block';
+                progressText.textContent = `Uploading ${selectedImages.length} image(s) to eBay...`;
+                progressDetails.textContent = 'Please wait, this may take a few moments.';
+                progressBar.style.width = '10%';
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('item_id', itemId);
+                
+                // Add images in order
+                selectedImages.forEach((imageData, index) => {
+                    formData.append(`image_${index}`, imageData.file);
+                });
+
+                // Update progress
+                if (selectedImages.length > 0) {
+                    progressText.textContent = 'Creating listing with uploaded images...';
+                    progressBar.style.width = '50%';
+                }
+
+                const response = await fetch('/ebay/new-item', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (selectedImages.length > 0) {
+                    progressBar.style.width = '100%';
+                    progressText.textContent = 'Upload complete!';
+                }
+
+                if (response.ok) {
+                    // Get the response HTML and update the page
+                    const responseText = await response.text();
+                    document.body.innerHTML = responseText;
+                    
+                    // Re-run scripts if needed
+                    const scripts = document.querySelectorAll('script');
+                    scripts.forEach(script => {
+                        if (script.innerHTML) {
+                            eval(script.innerHTML);
+                        }
+                    });
+                } else {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                uploadProgress.style.display = 'none';
+                alert('Error creating listing: ' + error.message);
+                createListingBtn.textContent = originalText;
+                createListingBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
